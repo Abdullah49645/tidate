@@ -1,15 +1,18 @@
 import type { Metadata, Viewport } from "next";
-import "@fontsource-variable/public-sans";
-import "@fontsource-variable/big-shoulders-display";
+import "@fontsource-variable/inter";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Undertow — concert date clash risk",
-  description:
-    "Rank the concert dates you can hold by how much nearby shows compete for an overlapping audience. Ticketmaster events weighted by Qloo affinity, with every number traceable.",
+  title: "Undertow",
+  description: "Pick the concert date your fans are free. Nearby shows weighted by real audience overlap.",
 };
 
-export const viewport: Viewport = { themeColor: "#E9EEEA" };
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f5f5f7" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+  ],
+};
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
