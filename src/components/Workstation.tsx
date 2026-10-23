@@ -312,25 +312,41 @@ export function Workstation() {
                         </>
                       )}
                     </p>
-                    <ul className="pills">
+                    <dl className="ledger">
                       {view.dates.length > 1 && !noEvidence && anyShows && (
-                        <li
-                          className={`pill ${view.verdict.robust || view.verdict.holdsIfTypical ? "good" : "warn"}`}
-                          title="Checked against shows Qloo couldn't match: once assuming each is a perfect match for your audience, once assuming each is a typical act nearby."
-                        >
-                          {view.verdict.robust
-                            ? "Holds even in the worst case"
-                            : view.verdict.holdsIfTypical
-                              ? "Holds unless unmatched acts are unusually close"
-                              : "Could change with unmatched acts"}
-                        </li>
+                        <div title="Checked against shows Qloo couldn't match: once assuming each is a perfect match for your audience, once assuming each is a typical act nearby.">
+                          <dt>Robustness</dt>
+                          <dd>
+                            <i className={`dot ${view.verdict.robust || view.verdict.holdsIfTypical ? "good" : "warn"}`} aria-hidden />
+                            {view.verdict.robust
+                              ? "Holds even in the worst case"
+                              : view.verdict.holdsIfTypical
+                                ? "Holds unless unmatched acts are unusually close"
+                                : "Could change with unmatched acts"}
+                          </dd>
+                        </div>
                       )}
-                      {view.dates.length > 1 && !noEvidence && anyShows && !view.verdict.baselineAgrees && <li className="pill blue">A headcount would pick differently</li>}
-                      {view.dates.length > 1 && !noEvidence && anyShows && view.verdict.baselineAgrees && <li className="pill">A headcount agrees</li>}
-                    </ul>
-                    <p className="run-summary">
-                      Checked {result.events.length + result.excluded.length} shows in {result.market.label} and matched {matchedCount} of {resolutions.length} artists in Qloo.
-                    </p>
+                      {view.dates.length > 1 && !noEvidence && anyShows && (
+                        <div>
+                          <dt>Headcount</dt>
+                          <dd>
+                            {view.verdict.baselineAgrees ? (
+                              "Agrees with this date"
+                            ) : (
+                              <>
+                                Would pick <span className="accent">{fmtDay([...view.dates].sort((a, b) => a.baselineRank - b.baselineRank)[0].date)}</span> instead
+                              </>
+                            )}
+                          </dd>
+                        </div>
+                      )}
+                      <div>
+                        <dt>Coverage</dt>
+                        <dd>
+                          {matchedCount} of {resolutions.length} artists matched in Qloo, across {result.events.length + result.excluded.length} shows
+                        </dd>
+                      </div>
+                    </dl>
                   </div>
                 </div>
               )}
