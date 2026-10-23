@@ -37,8 +37,10 @@ Repository: https://github.com/Abdullah49645/undertow
   web UI  ·  agent tools  ·  MCP server   (all share the same pipeline)
 ```
 
-- **Score**: `C(d) = Σ affinity × popularity × timing weight` over nearby shows.
-  See [docs/METHODOLOGY.md](docs/METHODOLOGY.md).
+- **Score**: `C(d) = Σ closeness × popularity × timing weight` over nearby shows,
+  where closeness is each act's Qloo affinity ranked against the other acts
+  playing nearby. See [docs/METHODOLOGY.md](docs/METHODOLOGY.md) and the live
+  findings behind it in [docs/API_VALIDATION.md](docs/API_VALIDATION.md).
 - **Count baseline**: the same shows and timing weights, each counted alike, shown
   side by side so you can see whether Qloo changes the answer.
 - **Evidence**: unmatched performers, missing affinity and imputed popularity are
@@ -93,7 +95,8 @@ npm run dev                  # http://localhost:3000
 | --- | --- | --- |
 | `QLOO_API_KEY` | live data | Qloo hackathon key request form; works only with `https://hackathon.api.qloo.com` |
 | `TICKETMASTER_API_KEY` | live data | developer.ticketmaster.com → My Apps → Consumer Key |
-| `GOOGLE_GENERATIVE_AI_API_KEY` (or `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`) | conversational agent only | Google AI Studio (free tier) |
+| `GOOGLE_GENERATIVE_AI_API_KEYS` (comma-separated; or `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`) | conversational agent only | Google AI Studio. Keys and models rotate automatically on 429/503/403 |
+| `UNDERTOW_LOOKUP_BUDGET_MS` | optional | Time budget for Qloo performer lookups (default 25000) |
 | `UNDERTOW_FORCE_DEMO=1` | optional | forces demo data |
 
 Without keys the app runs in **demo mode**: a fictional scenario that is labelled as
