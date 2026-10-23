@@ -1,7 +1,8 @@
 "use client";
 
 import type { DateScore } from "@/lib/types";
-import { fmt2, fmtDay } from "./format";
+import { CountUp } from "./CountUp";
+import { fmtDay } from "./format";
 
 const EVIDENCE: Record<DateScore["evidence"], string> = {
   strong: "Strong",
@@ -33,7 +34,9 @@ export function DateCards({
             <div className={`tag${isBest ? " best" : ""}`}>{isBest ? "Best night" : `Ranked ${d.rank} of ${dates.length}`}</div>
             <div className="day">{fmtDay(d.date)}</div>
             <div className="score-row">
-              <span className="score">{fmt2(d.score)}</span>
+              <span className="score">
+                <CountUp value={d.score} />
+              </span>
               <span className="score-label">clash score</span>
             </div>
             <div className="meter" aria-hidden>

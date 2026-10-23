@@ -41,8 +41,8 @@ export function Timeline({ d, scale }: { d: DateScore; scale: number }) {
         role="img"
         aria-label={`${d.inWindowEvents} shows within two weeks of ${fmtDay(d.date)}. Clash score ${fmt2(d.score)}.`}
       >
-        {days.map((k) => (
-          <div key={k} className={`tl-col${k === 0 ? " target" : ""}`}>
+        {days.map((k, i) => (
+          <div key={k} className={`tl-col${k === 0 ? " target" : ""}`} style={{ ["--i" as string]: i }}>
             <div className="tl-bars">
               {(byDay.get(k) ?? []).map((c) => (
                 <span

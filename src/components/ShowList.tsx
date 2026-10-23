@@ -155,23 +155,28 @@ export function ShowList({
                 </div>
                 {isOpen && (
                   <div className="row-detail">
-                    <div className="stat">
-                      <span>Qloo affinity</span>
-                      <b>{c.scored ? fmt2(c.affinity) : "–"}</b>
-                      {c.scored && closeness(c.relativeAffinity) && <small>{closeness(c.relativeAffinity)}</small>}
-                    </div>
-                    <div className="stat">
-                      <span>Popularity</span>
-                      <b>{c.scored ? (c.popularity === null ? "0.50*" : fmt2(c.popularity)) : "–"}</b>
-                    </div>
-                    <div className="stat">
-                      <span>Timing</span>
-                      <b>× {c.temporalWeight.toFixed(2)}</b>
-                    </div>
-                    <div className="stat">
-                      <span>{c.scored ? "Contribution" : "Worst case"}</span>
-                      <b>{fmt2(c.scored ? c.contribution : c.upperBound)}</b>
-                    </div>
+                    <dl className="figures">
+                      <div>
+                        <dt>Qloo affinity</dt>
+                        <dd>{c.scored ? fmt2(c.affinity) : "–"}</dd>
+                        {c.scored && closeness(c.relativeAffinity) && <small>{closeness(c.relativeAffinity)}</small>}
+                      </div>
+                      <div>
+                        <dt>Popularity</dt>
+                        <dd>{c.scored ? (c.popularity === null ? "0.50*" : fmt2(c.popularity)) : "–"}</dd>
+                        <small>Global, from Qloo</small>
+                      </div>
+                      <div>
+                        <dt>Timing</dt>
+                        <dd>× {c.temporalWeight.toFixed(2)}</dd>
+                        <small>{fmtRelative(c.daysApart)}</small>
+                      </div>
+                      <div>
+                        <dt>{c.scored ? "Contribution" : "Worst case"}</dt>
+                        <dd className="strong">{fmt2(c.scored ? c.contribution : c.upperBound)}</dd>
+                        <small>{c.scored ? "Added to this date" : "Not in the score"}</small>
+                      </div>
+                    </dl>
                     <div className="foot">
                       {e && e.name !== c.performer ? `Listed as “${e.name}”. ` : ""}
                       {c.scored

@@ -208,7 +208,7 @@ export function CommandBar({
         </div>
 
         <div className="cmd-action">
-          <button type="submit" className="btn-primary" disabled={!canRun}>
+          <button type="submit" className={`btn-primary${running ? " working" : ""}`} disabled={!canRun}>
             {running ? "Analyzing…" : "Analyze"}
           </button>
         </div>

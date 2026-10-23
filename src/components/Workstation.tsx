@@ -7,6 +7,8 @@ import { buildVerdict, scoreDates } from "@/lib/scoring/engine";
 import type { AnalysisResult, ArtistCandidate, DateScore, RankingVerdict } from "@/lib/types";
 import { AgentSheet } from "./AgentSheet";
 import { CalendarTile } from "./CalendarTile";
+import { CountUp } from "./CountUp";
+import { Tide } from "./Tide";
 import { CommandBar, type RequestValue } from "./CommandBar";
 import { DateCards } from "./DateCards";
 import { Details } from "./Details";
@@ -14,7 +16,7 @@ import { ShowList } from "./ShowList";
 import { Timeline } from "./Timeline";
 import { Versus } from "./Versus";
 import { fmt2, fmtDay, fmtLong, fmtShort } from "./format";
-import { Alert, Calendar, Check, Exclaim, Mark, Scale, Waves } from "./icons";
+import { Alert, Check, Exclaim, Mark } from "./icons";
 
 interface Status {
   liveAvailable: boolean;
@@ -200,15 +202,26 @@ export function Workstation() {
       )}
 
       <main className="page">
-        <section className={`hero${result ? " compact" : ""}`}>
-          <h1>Pick the night your fans are free.</h1>
-          <p>Undertow checks every show near your dates and weighs each by how much its audience overlaps with yours.</p>
-        </section>
-
-        <CommandBar mode={mode} value={req} onChange={setReq} onRun={run} running={running} clarify={clarify} onAsk={() => setAskOpen(true)} />
+        <div className={`stage${result || running ? " settled" : ""}`}>
+          <Tide />
+          <section className={`hero${result ? " compact" : ""}`}>
+            <h1>
+              <span className="line">Pick the night</span> <span className="line">your fans are free.</span>
+            </h1>
+            <p>Undertow checks every show near your dates and weighs each by how much its audience overlaps with yours.</p>
+          </section>
+          <div className="stage-bar">
+            <CommandBar mode={mode} value={req} onChange={setReq} onRun={run} running={running} clarify={clarify} onAsk={() => setAskOpen(true)} />
+          </div>
+        </div>
 
         {running && (
-          <div className="progress" aria-live="polite" aria-label="Progress">
+          <div
+            className="progress"
+            aria-live="polite"
+            aria-label="Progress"
+            style={{ ["--done" as string]: STEPS.filter((x) => progress[x] && progress[x]!.status !== "running").length / STEPS.length }}
+          >
             <ol>
               {STEPS.map((s) => {
                 const p = progress[s];
@@ -244,35 +257,29 @@ export function Workstation() {
         )}
 
         {!result && !running && !problem && (
-          <div className="how">
-            <div className="card">
-              <span className="how-icon">
-                <Calendar />
-              </span>
+          <ol className="how">
+            <li>
+              <span className="how-n">1</span>
               <h3>Every nearby show</h3>
-              <p>Music events within two weeks of each date, straight from Ticketmaster.</p>
-            </div>
-            <div className="card">
-              <span className="how-icon">
-                <Waves />
-              </span>
-              <h3>Weighted by your fans</h3>
-              <p>Qloo measures how closely each act&apos;s audience overlaps with your artist&apos;s.</p>
-            </div>
-            <div className="card">
-              <span className="how-icon">
-                <Scale />
-              </span>
-              <h3>Nothing hidden</h3>
+              <p>Ticketmaster lists the music events within two weeks of each date you can hold.</p>
+            </li>
+            <li>
+              <span className="how-n">2</span>
+              <h3>Weighed against your fans</h3>
+              <p>Qloo measures how closely each act&apos;s audience sits to your artist&apos;s.</p>
+            </li>
+            <li>
+              <span className="how-n">3</span>
+              <h3>A night you can defend</h3>
               <p>Every score breaks down into shows, signals and timing you can check.</p>
-            </div>
-          </div>
+            </li>
+          </ol>
         )}
 
         {result && view && (
           <div className="results">
 
-            <section className="verdict" id="verdict" aria-labelledby="verdict-title">
+            <section className="verdict" id="verdict" aria-labelledby="verdict-title" key={result.generatedAt}>
               {rec && (
                 <div className={`verdict-layout${noEvidence || !anyShows ? " plain" : ""}`}>
                   {!noEvidence && anyShows && <CalendarTile iso={rec} year={new Date(`${rec}T00:00:00Z`).getUTCFullYear() !== new Date().getUTCFullYear()} />}
@@ -303,7 +310,15 @@ export function Workstation() {
                         <>Ticketmaster lists no music events within two weeks of these dates in {result.market.label}. Shows sold elsewhere won&apos;t appear here.</>
                       ) : view.dates.length > 1 && runnerUp ? (
                         <>
-                          The least pull on {artist}&apos;s audience: a clash score of <strong>{fmt2(ordered[0].score)}</strong>, against <strong>{fmt2(runnerUp.score)}</strong> for{" "}
+                          The least pull on {artist}&apos;s audience: a clash score of{" "}
+                          <strong>
+                            <CountUp value={ordered[0].score} delay={450} />
+                          </strong>
+                          , against{" "}
+                          <strong>
+                            <CountUp value={runnerUp.score} delay={450} />
+                          </strong>{" "}
+                          for{" "}
                           {fmtDay(runnerUp.date)}.
                         </>
                       ) : (
@@ -369,7 +384,7 @@ export function Workstation() {
               </h2>
               <p className="section-sub">Lower is better. Choose a date to see what&apos;s around it.</p>
               <DateCards dates={view.dates} best={rec} selected={selectedDate?.date ?? null} onSelect={setSelected} />
-              {selectedDate && <Timeline d={selectedDate} scale={scale} />}
+              {selectedDate && <Timeline key={selectedDate.date} d={selectedDate} scale={scale} />}
             </section>
 
             {selectedDate && (
