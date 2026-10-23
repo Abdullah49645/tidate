@@ -168,3 +168,48 @@ describe("artist match policy", () => {
     expect(classifyMatch("Anyone", []).status).toBe("not-found");
   });
 });
+
+describe("performer from event title", () => {
+  it("takes the part before common separators", async () => {
+    const { performerFromTitle } = await import("@/lib/pipeline");
+    expect(performerFromTitle("Clairo - Charm Tour")).toBe("Clairo");
+    expect(performerFromTitle("Clairo: Charm Tour 2027")).toBe("Clairo");
+    expect(performerFromTitle("Phoebe Bridgers with Special Guests")).toBe("Phoebe Bridgers");
+    expect(performerFromTitle("Laufey (Late Show)")).toBe("Laufey");
+    expect(performerFromTitle("The Japanese House | Live")).toBe("The Japanese House");
+    expect(performerFromTitle("x")).toBeNull();
+  });
+});
+
+describe("bill splitting", () => {
+  it("splits multi-act names and drops placeholders", async () => {
+    const { splitBill } = await import("@/lib/pipeline");
+    expect(splitBill("Ok Goodnight, Snooze, Eve")).toEqual(["Ok Goodnight", "Snooze", "Eve"]);
+    expect(splitBill("Solo Kei, Jiwon, Tba")).toEqual(["Solo Kei", "Jiwon"]);
+    expect(splitBill("Band A / Band B")).toEqual(["Band A", "Band B"]);
+    expect(splitBill("Mike and Joe")).toEqual([]);
+    expect(splitBill("Earth, Wind & Fire")).toEqual(["Earth", "Wind & Fire"]);
+  });
+
+  it("only scores split parts that match exactly, and only when the full name didn't", async () => {
+    const { runAnalysis } = await import("@/lib/pipeline");
+    const base = createDemoProvider();
+    const p: DataProvider = {
+      ...base,
+      searchEvents: async (x) => {
+        const r = await base.searchEvents(x);
+        const e = r.events.find((ev) => ev.eventId === "demo-e01")!;
+        // A bill listed as one attraction: "Morrow & Finch, Some Local Act"
+        e.performers = [{ attractionId: null, name: "Morrow & Finch, Some Local Act", genre: null }];
+        return r;
+      },
+    };
+    const out = await runAnalysis(p, demoReq);
+    if (out.kind !== "result") throw new Error("expected result");
+    const ev = out.result.events.find((e) => e.eventId === "demo-e01")!;
+    expect(ev.performers.map((x) => x.name)).toEqual(["Morrow & Finch, Some Local Act", "Morrow & Finch"]);
+    const c = out.result.dates.flatMap((d) => d.contributions).find((x) => x.eventId === "demo-e01")!;
+    expect(c.scored).toBe(true);
+    expect(c.performer).toBe("Morrow & Finch");
+  });
+});

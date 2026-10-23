@@ -246,11 +246,18 @@ describe("verdict robustness", () => {
     const unk = ev({ performer: "Unknown", date: "2027-05-23" });
     const events = [a, unk];
     const links = { ...linksFor([a]), [unk.eventId]: [{ name: "Unknown", entityId: null }] };
-    const res = scoreDates({ candidateDates: ["2027-05-09", "2027-05-23"], events, links, signals: sig({ A: [0.6, 0.5] }) });
+    // Typical matched act would contribute 1.0 at full timing weight: enough to flip.
+    const res = scoreDates({ candidateDates: ["2027-05-09", "2027-05-23"], events, links, signals: sig({ A: [0.6, 0.5] }), typicalUnit: 1 });
     const v = buildVerdict(res);
     expect(v.recommendedDate).toBe("2027-05-23");
     expect(v.robust).toBe(false);
+    expect(v.holdsIfTypical).toBe(false);
     expect(v.whatWouldChange.join(" ")).toMatch(/could not be scored/);
+    // With a small typical unit it fails the worst case but holds if unmatched acts are typical.
+    const res2 = scoreDates({ candidateDates: ["2027-05-09", "2027-05-23"], events, links, signals: sig({ A: [0.6, 0.5] }), typicalUnit: 0.1 });
+    const v2 = buildVerdict(res2);
+    expect(v2.robust).toBe(false);
+    expect(v2.holdsIfTypical).toBe(true);
   });
 
   it("names the single event whose removal would flip the ranking", () => {
@@ -336,5 +343,39 @@ describe("request validation", () => {
     expect(AnalysisRequestSchema.safeParse({ ...base, candidateDates: [] }).success).toBe(false);
     expect(AnalysisRequestSchema.safeParse({ ...base, candidateDates: ["2027-01-01", "2027-01-02", "2027-01-03", "2027-01-04", "2027-01-05"] }).success).toBe(false);
     expect(AnalysisRequestSchema.safeParse({ ...base, candidateDates: [D] }).success).toBe(true);
+  });
+});
+
+describe("relative affinity", () => {
+  it("is the mid-rank percentile within the pool, monotone and order-independent", async () => {
+    const { relativeAffinities } = await import("@/lib/scoring/engine");
+    const r = relativeAffinities({
+      a: { affinity: 0.74, popularity: 1 },
+      b: { affinity: 0.84, popularity: 1 },
+      c: { affinity: 0.98, popularity: 1 },
+      d: { affinity: 0.84, popularity: 1 },
+      e: { affinity: null, popularity: 1 },
+    });
+    expect(r.a.relAffinity).toBeCloseTo(0.125, 10);
+    expect(r.b.relAffinity).toBeCloseTo(0.5, 10);
+    expect(r.d.relAffinity).toBeCloseTo(0.5, 10);
+    expect(r.c.relAffinity).toBeCloseTo(0.875, 10);
+    expect(r.e.relAffinity).toBeNull();
+    expect(r.a.affinity).toBe(0.74); // raw value preserved
+  });
+
+  it("weights by relative affinity when present and reports both values", () => {
+    const e = ev({ performer: "Rel", date: D });
+    const [d] = scoreDates({
+      candidateDates: [D],
+      events: [e],
+      links: linksFor([e]),
+      signals: { "Q-Rel": { affinity: 0.9, popularity: 0.5, relAffinity: 0.2 } },
+    });
+    // Closeness emphasis: weight = rel^4.
+    expect(d.score).toBeCloseTo(Math.pow(0.2, 4) * 0.5, 12);
+    expect(d.contributions[0].affinity).toBe(0.9);
+    expect(d.contributions[0].relativeAffinity).toBe(0.2);
+    expect(d.contributions[0].affinityWeight).toBeCloseTo(Math.pow(0.2, 4), 12);
   });
 });

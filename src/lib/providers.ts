@@ -2,6 +2,7 @@ import "server-only";
 import { getConfig } from "./config";
 import { createDemoProvider } from "./demo/provider";
 import type { DataProvider } from "./pipeline";
+import { cachedSearchArtists } from "./qloo/cached";
 import { QlooClient } from "./qloo/client";
 import { searchMusicEvents } from "./ticketmaster/client";
 
@@ -15,8 +16,9 @@ export function createLiveProvider(): DataProvider {
   const tmKey = c.ticketmasterApiKey;
   return {
     mode: "live",
+    resolveBudgetMs: Number(process.env.UNDERTOW_LOOKUP_BUDGET_MS ?? 25_000),
     searchEvents: (p) => searchMusicEvents(tmKey, p),
-    searchArtists: (name) => qloo.searchArtists(name),
+    searchArtists: (name) => cachedSearchArtists(name.trim()),
     affinities: (target, ids) => qloo.affinities(target, ids),
   };
 }

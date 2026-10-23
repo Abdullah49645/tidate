@@ -48,6 +48,7 @@ export interface Provenance {
 /* ------------------------------------------------------------------ */
 
 export type MatchStatus =
+  | "not-checked" // skipped: lookup time budget reached
   | "exact" // normalised names identical, single top candidate
   | "confirmed" // user explicitly confirmed this entity
   | "ambiguous" // several plausible candidates
@@ -85,6 +86,10 @@ export interface Performer {
   name: string;
   /** Ticketmaster genre label, if present (used only for evaluation/display). */
   genre: string | null;
+  /** True when Ticketmaster listed no performer and the name was taken from the event title. */
+  fromTitle?: boolean;
+  /** True when this act was split out of a multi-act bill listed as one name. */
+  fromSplit?: boolean;
 }
 
 export interface CompetingEvent {
@@ -144,7 +149,12 @@ export interface Contribution {
   qlooEntityId: string | null;
   daysApart: number;
   temporalWeight: number;
+  /** Raw Qloo affinity. */
   affinity: number | null;
+  /** Percentile of the raw affinity among matched acts in the market window. */
+  relativeAffinity: number | null;
+  /** Affinity value actually used in the product (relative when available, else raw). */
+  affinityWeight: number | null;
   popularity: number | null;
   /** Popularity value actually used (imputed if missing). */
   sizeWeight: number | null;
@@ -152,6 +162,8 @@ export interface Contribution {
   contribution: number | null;
   /** Worst-case contribution used for the robustness bound when not scoreable. */
   upperBound: number;
+  /** Contribution if an unscored show were as close as a typical matched act. */
+  typicalEstimate: number;
   scored: boolean;
   flags: UncertaintyFlag[];
 }
@@ -162,6 +174,7 @@ export interface DateScore {
   date: string;
   score: number; // sum of scored contributions
   upperBound: number; // score + worst case for unscored in-window events
+  typicalScore: number; // score + typical-act estimate for unscored in-window events
   rank: number; // 1 = lowest clash risk
   baselineCount: number; // events with temporalWeight > 0 (unweighted)
   baselineWeighted: number; // sum of temporal weights (count baseline, same window)
@@ -177,6 +190,8 @@ export interface RankingVerdict {
   recommendedDate: string | null;
   /** True when the recommendation holds even if every unscored event were worst-case. */
   robust: boolean;
+  /** True when it holds if unscored events were as close as a typical matched act. */
+  holdsIfTypical: boolean;
   /** Score margin between the recommended date and the runner-up. */
   margin: number | null;
   baselineAgrees: boolean;

@@ -140,8 +140,8 @@ export function Workstation() {
   const view = useMemo((): { dates: DateScore[]; verdict: RankingVerdict } | null => {
     if (!result) return null;
     if (ignored.size === 0) return { dates: result.dates, verdict: result.verdict };
-    const { links, signals } = rebuildScoringInputs(result);
-    const dates = scoreDates({ candidateDates: result.request.candidateDates, events: result.events, links, signals, ignoredEventIds: [...ignored] });
+    const { links, signals, typicalUnit } = rebuildScoringInputs(result);
+    const dates = scoreDates({ candidateDates: result.request.candidateDates, events: result.events, links, signals, typicalUnit, ignoredEventIds: [...ignored] });
     return { dates, verdict: buildVerdict(dates) };
   }, [result, ignored]);
 
@@ -306,8 +306,15 @@ export function Workstation() {
                   </p>
                   <ul className="pills">
                     {view.dates.length > 1 && !noEvidence && anyShows && (
-                      <li className={`pill ${view.verdict.robust ? "good" : "warn"}`}>
-                        {view.verdict.robust ? "Holds even with missing data" : "Could change with missing data"}
+                      <li
+                        className={`pill ${view.verdict.robust || view.verdict.holdsIfTypical ? "good" : "warn"}`}
+                        title="Checked against shows Qloo couldn't match: once assuming each is a perfect match for your audience, once assuming each is a typical act nearby."
+                      >
+                        {view.verdict.robust
+                          ? "Holds even in the worst case"
+                          : view.verdict.holdsIfTypical
+                            ? "Holds unless unmatched acts are unusually close"
+                            : "Could change with unmatched acts"}
                       </li>
                     )}
                     {view.dates.length > 1 && !noEvidence && anyShows && !view.verdict.baselineAgrees && <li className="pill blue">A headcount would pick differently</li>}

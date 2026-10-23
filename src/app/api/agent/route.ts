@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   } catch {
     return Response.json({ error: "Invalid agent request." }, { status: 400 });
   }
-  if (!getConfig().llm) {
+  if (!getConfig().llmRoutes.length) {
     return Response.json(
       { error: "The conversational agent needs an LLM key on the server. The structured form above runs the same tools without one.", code: "no-llm" },
       { status: 503 },

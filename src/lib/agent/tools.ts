@@ -38,6 +38,7 @@ export function summariseDate(d: DateScore, topN = 3) {
         eventDate: c.eventDate,
         daysApart: c.daysApart,
         affinity: r3(c.affinity),
+        closerThanShareOfNearbyActs: c.relativeAffinity === null ? null : r3(c.relativeAffinity),
         popularity: c.popularity === null ? "imputed" : r3(c.popularity),
         contribution: r3(c.contribution),
       })),
@@ -52,6 +53,7 @@ export function summariseResult(r: AnalysisResult) {
     market: r.market.label,
     recommendation: r.verdict.recommendedDate,
     robustToMissingData: r.verdict.robust,
+    holdsIfUnmatchedActsAreTypical: r.verdict.holdsIfTypical,
     countBaselineAgrees: r.verdict.baselineAgrees,
     summary: r.verdict.summary,
     whatWouldChange: r.verdict.whatWouldChange,
@@ -171,8 +173,8 @@ export function createToolHandlers(ctx: ToolContext) {
         record("what_if_exclude", { eventIds }, false, "unknown event ids");
         return { error: `Unknown eventIds: ${unknown.join(", ")}` };
       }
-      const { links, signals } = rebuildScoringInputs(r);
-      const dates = scoreDates({ candidateDates: r.request.candidateDates, events: r.events, links, signals, ignoredEventIds: eventIds });
+      const { links, signals, typicalUnit } = rebuildScoringInputs(r);
+      const dates = scoreDates({ candidateDates: r.request.candidateDates, events: r.events, links, signals, typicalUnit, ignoredEventIds: eventIds });
       const verdict = buildVerdict(dates);
       record("what_if_exclude", { eventIds }, true, `recommend ${verdict.recommendedDate}`);
       return {

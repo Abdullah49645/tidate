@@ -97,8 +97,10 @@ export async function fetchJson(opts: FetchJsonOptions): Promise<unknown> {
     const retryable = res.status === 429 || res.status >= 500;
     if (retryable && attempt < retries) {
       attempt += 1;
-      const ra = Number(res.headers.get("retry-after"));
-      await sleep(Number.isFinite(ra) && ra > 0 ? Math.min(ra * 1000, 5000) : 700 * attempt);
+      // Honour Retry-After or Qloo's per-second reset header; otherwise back off.
+      const ra = Number(res.headers.get("retry-after") ?? res.headers.get("x-second-ratelimit-reset"));
+      const base = res.status === 429 ? 1000 : 700;
+      await sleep(Number.isFinite(ra) && ra > 0 ? Math.min(Math.max(ra * 1000, base), 5000) + 100 * attempt : base * attempt);
       continue;
     }
     let detail = "";

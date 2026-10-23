@@ -64,7 +64,7 @@ const ROWS: Row[] = [
   ["demo-e09", ["Halcyon Drift"], "2027-05-16", "foundry", "rescheduled"],
   ["demo-e10", ["Paper Lanterns"], "2027-05-17", "larkspur", "canceled", "Paper Lanterns – Second Night"],
   ["demo-e11", ["Quiet Harbor"], "2027-05-19", "copper"],
-  ["demo-e12", ["Echo"], "2027-05-20", "union"],
+  ["demo-e12", ["Echo"], "2027-05-25", "union"],
   ["demo-e13", ["Glass Orchard"], "2027-05-21", "foundry"],
   ["demo-e14", ["Decades Revue: A Tribute to the 80s"], "2027-05-23", "marigold"],
   ["demo-e15", ["Saint Ember"], "2027-05-24", "riverside"],

@@ -8,7 +8,9 @@ import {
   dayDiff,
   normaliseName,
   prepareEvents,
+  relativeAffinities,
   scoreDates,
+  typicalUnit,
   type PerformerLink,
   type SignalLookup,
 } from "./scoring/engine";
@@ -27,6 +29,11 @@ import type { Market } from "./markets";
 /** Data access used by the pipeline. Live and demo implementations share all logic below. */
 export interface DataProvider {
   mode: "live" | "demo";
+  /**
+   * Time budget for performer lookups (ms). Performers are looked up closest-show
+   * first; any not reached are marked "not-checked" and left unscored.
+   */
+  resolveBudgetMs?: number;
   searchEvents(p: { market: Market; radiusMiles: number; startDate: string; endDate: string }): Promise<EventSearchResult>;
   searchArtists(name: string): Promise<ArtistCandidate[]>;
   affinities(targetEntityId: string, entityIds: string[]): Promise<Record<string, AffinitySignal>>;
@@ -57,6 +64,35 @@ export type PipelineOutcome =
   | { kind: "error"; message: string; step: StepId };
 
 const RESOLVE_CONCURRENCY = 6;
+
+/**
+ * Ticketmaster sometimes lists an event with no performer ("Clairo – Charm Tour").
+ * The part of the title before a separator is used as a candidate name; it is
+ * still subject to the strict exact-match policy, so a vague title stays unmatched.
+ */
+export function performerFromTitle(title: string): string | null {
+  const head = title
+    .replace(/\(.*?\)|\[.*?\]/g, " ")
+    .split(/\s+(?:-|–|—|:|\||@|w\/|with|feat\.?|ft\.?|featuring|presents|live at|live in)\s+|:\s+/i)[0]
+    .replace(/\s+/g, " ")
+    .trim();
+  return head.length >= 2 && head.length <= 60 ? head : null;
+}
+
+/** Splits a single-name bill on commas, slashes and plus signs. */
+export function splitBill(name: string): string[] {
+  const parts = name
+    .split(/\s*,\s*|\s+\/\s+|\s+\+\s+/)
+    .map((x) => x.trim())
+    .filter((x) => x.length >= 2 && !/^(tba|tbd|and more|more|special guests?)$/i.test(x));
+  return parts.length >= 2 ? [...new Set(parts)] : [];
+}
+
+function withTitlePerformer(e: import("./types").CompetingEvent): import("./types").CompetingEvent {
+  if (e.performers.length > 0) return e;
+  const name = performerFromTitle(e.name);
+  return name ? { ...e, performers: [{ attractionId: null, name, genre: e.genre, fromTitle: true }] } : e;
+}
 
 async function mapLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R>): Promise<R[]> {
   const out = new Array<R>(items.length);
@@ -146,7 +182,7 @@ export async function runAnalysis(
   if (search.malformed > 0) {
     diagnostics.push({ level: "info", code: "tm-malformed", message: `${search.malformed} Ticketmaster record(s) had an unexpected shape and were skipped.` });
   }
-  const inRange = search.events.filter((e) => !e.localDate || dates.some((d) => Math.abs(dayDiff(d, e.localDate!)) <= WINDOW_DAYS));
+  const inRange = search.events.map(withTitlePerformer).filter((e) => !e.localDate || dates.some((d) => Math.abs(dayDiff(d, e.localDate!)) <= WINDOW_DAYS));
   const prepared = prepareEvents(inRange, { targetNames: [req.artist, target.entity.name] });
   onProgress({
     step: "events",
@@ -155,17 +191,70 @@ export async function runAnalysis(
   });
 
   /* 4. Performer resolution ----------------------------------------- */
-  const names = new Map<string, string>(); // normalised -> display
-  for (const e of prepared.eligible) for (const p of e.performers) if (!names.has(normaliseName(p.name))) names.set(normaliseName(p.name), p.name);
+  // Priority: performers whose shows are closest to a candidate date are looked up first.
+  const names = new Map<string, { name: string; gap: number }>(); // normalised -> display + nearest gap
+  for (const e of prepared.eligible) {
+    const gap = e.localDate ? Math.min(...dates.map((d) => Math.abs(dayDiff(d, e.localDate!)))) : 99;
+    for (const p of e.performers) {
+      const k = normaliseName(p.name);
+      const cur = names.get(k);
+      if (!cur || gap < cur.gap) names.set(k, { name: p.name, gap });
+    }
+  }
+  const queue = [...names.values()].sort((a, b) => a.gap - b.gap || a.name.localeCompare(b.name));
   onProgress({ step: "performers", status: "running", detail: `${names.size} distinct performers` });
-  const resolutionsList = await mapLimit([...names.values()], RESOLVE_CONCURRENCY, (n) => resolveArtist((x) => provider.searchArtists(x), n));
+  const deadline = provider.resolveBudgetMs ? Date.now() + provider.resolveBudgetMs : Infinity;
+  const resolutionsList = await mapLimit(queue, RESOLVE_CONCURRENCY, async ({ name }): Promise<ArtistResolution> => {
+    if (Date.now() > deadline) {
+      return {
+        inputName: name,
+        status: "not-checked",
+        entity: null,
+        candidates: [],
+        provenance: { source: provider.mode === "demo" ? "demo-fixture" : "qloo", retrievedAt: new Date().toISOString(), request: "skipped: lookup time budget reached" },
+        note: "Not looked up within the time limit",
+      };
+    }
+    return resolveArtist((x) => provider.searchArtists(x), name);
+  });
   const resolutions: Record<string, ArtistResolution> = {};
   for (const r of resolutionsList) {
     if (provider.mode === "demo") r.provenance.source = "demo-fixture";
     resolutions[normaliseName(r.inputName)] = r;
   }
+
+  // Bills listed as a single name ("Ok Goodnight, Snooze, Eve"): only when the full
+  // name did not match, look up each part. Parts must still match exactly.
+  const splitOf = new Map<string, string[]>();
+  for (const r of resolutionsList) {
+    if (r.status !== "weak" && r.status !== "not-found") continue;
+    const parts = splitBill(r.inputName);
+    if (parts.length >= 2) splitOf.set(normaliseName(r.inputName), parts);
+  }
+  const partQueue = [...new Set([...splitOf.values()].flat())].filter((x) => !resolutions[normaliseName(x)]);
+  const partResolutions = await mapLimit(partQueue, RESOLVE_CONCURRENCY, async (name) =>
+    Date.now() > deadline ? null : resolveArtist((x) => provider.searchArtists(x), name),
+  );
+  for (const r of partResolutions) {
+    if (!r) continue;
+    if (provider.mode === "demo") r.provenance.source = "demo-fixture";
+    resolutions[normaliseName(r.inputName)] = r;
+  }
+  for (const e of prepared.eligible) {
+    const extra = e.performers.flatMap((p) =>
+      (splitOf.get(normaliseName(p.name)) ?? [])
+        .filter((part) => resolutions[normaliseName(part)]?.status === "exact")
+        .map((part) => ({ attractionId: null, name: part, genre: p.genre, fromSplit: true })),
+    );
+    if (extra.length) e.performers = [...e.performers, ...extra];
+  }
+  resolutionsList.push(...partResolutions.filter((r): r is ArtistResolution => !!r && r.status === "exact"));
   const errors = resolutionsList.filter((r) => r.status === "error").length;
-  const matched = resolutionsList.filter((r) => r.status === "exact").length;
+  const matched = Object.values(resolutions).filter((r) => r.status === "exact").length;
+  const skipped = resolutionsList.filter((r) => r.status === "not-checked").length;
+  if (skipped > 0) {
+    diagnostics.push({ level: "warning", code: "lookup-budget", message: `${skipped} performer(s) far from your dates weren't looked up within the time limit and are left unscored. Running again uses cached lookups and checks more.` });
+  }
   if (errors > 0) {
     diagnostics.push({ level: "warning", code: "qloo-search-errors", message: `${errors} performer lookup(s) failed at Qloo and were left unscored.` });
   }
@@ -214,12 +303,17 @@ export async function runAnalysis(
   // Popularity fallback: the same Qloo popularity field from the search result.
   const popFromSearch = new Map<string, number>();
   for (const r of resolutionsList) if (r.entity && r.entity.popularity !== null) popFromSearch.set(r.entity.entityId, r.entity.popularity);
-  const signals: Record<string, SignalLookup> = {};
+  const rawSignals: Record<string, SignalLookup> = {};
   for (const id of entityIds) {
     const s = affinities[id];
-    signals[id] = { affinity: s?.affinity ?? null, popularity: s?.popularity ?? popFromSearch.get(id) ?? null };
+    rawSignals[id] = { affinity: s?.affinity ?? null, popularity: s?.popularity ?? popFromSearch.get(id) ?? null };
   }
+  const signals = relativeAffinities(rawSignals);
+  const unit = typicalUnit(signals);
   const withAffinity = entityIds.filter((id) => signals[id].affinity !== null).length;
+  if (withAffinity > 0 && withAffinity < 15) {
+    diagnostics.push({ level: "info", code: "small-pool", message: `Only ${withAffinity} matched acts in this window, so "relative affinity" (rank among acts nearby) is coarse.` });
+  }
   if (entityIds.length && withAffinity === 0) {
     diagnostics.push({ level: "error", code: "qloo-no-affinity", message: "Qloo returned no affinity values for any matched performer. Scores are zero for lack of evidence, not because there is no competition." });
   } else if (withAffinity < entityIds.length) {
@@ -229,7 +323,7 @@ export async function runAnalysis(
 
   /* 6. Score --------------------------------------------------------- */
   onProgress({ step: "score", status: "running" });
-  const scored = scoreDates({ candidateDates: dates, events: prepared.eligible, links, signals });
+  const scored = scoreDates({ candidateDates: dates, events: prepared.eligible, links, signals, typicalUnit: unit });
   const verdict = buildVerdict(scored);
   onProgress({ step: "score", status: "done", detail: verdict.recommendedDate ? `Lowest risk: ${verdict.recommendedDate}` : undefined });
 
@@ -245,10 +339,14 @@ export async function runAnalysis(
       diagnostics.push({ level: "warning", code: "weak-evidence", message: `${d.date}: fewer than half of nearby shows (time-weighted) could be scored. Treat this date's score as a lower bound.` });
     }
   }
-  if (!verdict.robust && scored.length > 1) {
-    diagnostics.push({ level: "warning", code: "not-robust", message: "Unscored shows could change the ranking if they turned out to overlap strongly with your audience." });
+  if (!verdict.robust && !verdict.holdsIfTypical && scored.length > 1) {
+    diagnostics.push({ level: "warning", code: "not-robust", message: "Unscored shows could change the ranking even if they were only as close to your artist as a typical act nearby." });
   }
-  onProgress({ step: "verify", status: "done", detail: verdict.robust ? "Ranking holds under worst-case missing data" : "Ranking sensitive to missing data" });
+  onProgress({
+    step: "verify",
+    status: "done",
+    detail: verdict.robust ? "Ranking holds even in the worst case" : verdict.holdsIfTypical ? "Ranking holds unless unmatched acts are unusually close" : "Ranking sensitive to unmatched acts",
+  });
 
   const eventIds = new Set(prepared.eligible.map((e) => e.eventId));
   const result: AnalysisResult = {
@@ -279,13 +377,16 @@ export function rebuildScoringInputs(result: AnalysisResult) {
       return { name: p.name, entityId: r && (r.status === "exact" || r.status === "confirmed") && r.entity ? r.entity.entityId : null };
     });
   }
-  const signals: Record<string, SignalLookup> = {};
+  // Same pool as the pipeline: entities linked to eligible events.
+  const ids = new Set(Object.values(links).flat().map((l) => l.entityId).filter((x): x is string => !!x));
+  const raw: Record<string, SignalLookup> = {};
   for (const r of Object.values(result.resolutions)) {
-    if (!r.entity) continue;
+    if (!r.entity || !ids.has(r.entity.entityId)) continue;
     const s = result.affinities[r.entity.entityId];
-    signals[r.entity.entityId] = { affinity: s?.affinity ?? null, popularity: s?.popularity ?? r.entity.popularity ?? null };
+    raw[r.entity.entityId] = { affinity: s?.affinity ?? null, popularity: s?.popularity ?? r.entity.popularity ?? null };
   }
-  return { links, signals };
+  const signals = relativeAffinities(raw);
+  return { links, signals, typicalUnit: typicalUnit(signals) };
 }
 
 export { classifyMatch };

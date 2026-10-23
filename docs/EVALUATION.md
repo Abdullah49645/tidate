@@ -68,4 +68,23 @@ _Pending: requires live API keys. Run `npm run eval:collect` then `npm run eval:
 
 ## Deviations
 
-_None yet._
+Recorded on 2026-10-23, **before** any evaluation data was collected. They come
+from live API validation on a hand-picked set of artists (Clairo and six others,
+Chicago), not from the evaluation markets or targets.
+
+1. **Relative affinity.** Live Qloo affinity proved compressed: with Clairo as the
+   signal, Slipknot scored 0.74 and beabadoobee 0.98. Raw values would make
+   unrelated acts count three quarters as much as near-identical ones. Scoring
+   v1.2.0 weights each act by the percentile of its affinity among acts playing
+   nearby, raised to the power 4 (an act in the top tenth counts about ten times
+   a median one). The exponent was set from that principle, not fitted to any
+   outcome. E1 is unaffected (AUC is rank-based); E2 and E3 use v1.2.0.
+2. **Second robustness tier.** In live data roughly half of nearby performers are
+   local acts, tributes and special events with no exact Qloo match, so the
+   worst-case bound almost never holds. v1.2.0 adds a second check that treats
+   unmatched shows as typical matched acts. Reported alongside the worst case.
+3. **De-duplication** now keys on (local date, headliner name) instead of
+   (venue, date, headliner): live data listed the same show under two venue
+   records.
+4. **Qloo coverage gaps** found during validation (for example, no solo
+   "Ludacris" entity, only collaborations) are left unmatched by design.

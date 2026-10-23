@@ -2,24 +2,38 @@ import "server-only";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
-import { ToolLoopAgent, stepCountIs, tool, type LanguageModel, type ModelMessage } from "ai";
-import { getConfig } from "../config";
+import { APICallError, ToolLoopAgent, stepCountIs, tool, type LanguageModel, type ModelMessage } from "ai";
+import { getConfig, type LlmRoute } from "../config";
 import type { DataProvider } from "../pipeline";
 import type { AnalysisResult } from "../types";
 import { createToolHandlers, toolSchemas, type ToolContext } from "./tools";
 import { verifyAgentAnswer } from "./verify";
 
-function model(): LanguageModel {
-  const c = getConfig();
-  if (!c.llm) throw new Error("No LLM key configured (GOOGLE_GENERATIVE_AI_API_KEY, OPENAI_API_KEY or ANTHROPIC_API_KEY).");
-  switch (c.llm.provider) {
+function modelFor(r: LlmRoute): LanguageModel {
+  switch (r.provider) {
     case "google":
-      return createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY })(c.llm.model);
+      return createGoogleGenerativeAI({ apiKey: r.apiKey })(r.model);
     case "openai":
-      return createOpenAI({ apiKey: process.env.OPENAI_API_KEY })(c.llm.model);
+      return createOpenAI({ apiKey: r.apiKey })(r.model);
     case "anthropic":
-      return createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY })(c.llm.model);
+      return createAnthropic({ apiKey: r.apiKey })(r.model);
   }
+}
+
+/**
+ * Errors worth trying the next key or model for: rate limits, overload,
+ * a key blocked for the API, or a model not available to that key.
+ */
+export function isRouteError(err: unknown): boolean {
+  const e = err as { statusCode?: number; lastError?: unknown; errors?: unknown[]; cause?: unknown };
+  if (APICallError.isInstance(err)) {
+    if ([401, 403, 404, 408, 429, 500, 502, 503, 504].includes(err.statusCode ?? 0)) return true;
+    return /API key|quota|exhausted|permission|not available|overloaded|unavailable/i.test(err.message);
+  }
+  if (e?.lastError) return isRouteError(e.lastError);
+  if (Array.isArray(e?.errors) && e.errors.length) return isRouteError(e.errors[e.errors.length - 1]);
+  if (e?.cause) return isRouteError(e.cause);
+  return false;
 }
 
 function instructions(today: string, mode: "live" | "demo") {
@@ -31,7 +45,7 @@ How you work:
 - To analyse, you need: an artist, a market (use list_markets to map the city to a market id), and 1-4 candidate dates. Convert dates like "May 9" to YYYY-MM-DD; if no year is given, use the next occurrence after today.
 - If the artist, market or dates are missing, ask one short question instead of guessing. If analyze_candidate_dates or find_artist reports an ambiguous artist, show the candidates and ask which one, unless the user already made it clear.
 - After analysing, call explain_date for the recommended date and, when it helps, compare_dates against the runner-up. Use what_if_exclude when the user asks about a show moving or being cancelled.
-- Answer concisely: the recommended date first, then the two or three shows that drive the difference (performer, venue, date, affinity), whether a plain count of nearby shows would have chosen differently, and any material data gaps.
+- Answer in plain text for a chat bubble: no markdown, no headings, no asterisks, no tables. At most about 120 words in short paragraphs. Write dates like "Sat, Dec 19". Lead with the recommended date, then the two or three shows that drive the difference (performer, date, and how close their audience is to the artist's), whether a plain count of nearby shows would have chosen differently, and the one most important data gap. Don't repeat disclaimers the user didn't ask about beyond one short clause.
 - Be precise about meaning: Qloo affinity is a proxy for potential audience overlap, not a count of shared ticket buyers; Ticketmaster does not list every show; a lower clash score is not a promise of better ticket sales.
 ${mode === "demo" ? "- This session uses DEMO DATA: fictional artists, venues and values. Say so in your answer. The demo artist is 'Juniper Static' in market 'chicago' with candidate dates 2027-05-08, 2027-05-15, 2027-05-22." : ""}`;
 }
@@ -42,21 +56,49 @@ export interface AgentRun {
   analysis: AnalysisResult | null;
   verification: ReturnType<typeof verifyAgentAnswer>;
   steps: number;
+  /** Which model answered and how many routes were tried (no keys). */
+  route: { provider: string; model: string; keyIndex: number; attempts: number } | null;
 }
 
-export async function runAgent(opts: {
+interface RunOpts {
   provider: DataProvider;
   messages: ModelMessage[];
   previous: AnalysisResult | null;
   today: string;
-  /** Injected model (tests). Defaults to the configured provider. */
+  /** Injected model (tests). Defaults to the configured routes with fallback. */
   model?: LanguageModel;
-}): Promise<AgentRun> {
+}
+
+/**
+ * Runs the agent, falling through configured keys and models when a route is
+ * rate limited, overloaded or not permitted. Tool results are cached
+ * server-side, so a retry does not repeat the expensive lookups.
+ */
+export async function runAgent(opts: RunOpts): Promise<AgentRun> {
+  if (opts.model) return runOnce(opts, opts.model, null, 1);
+  const routes = getConfig().llmRoutes;
+  if (!routes.length) throw new Error("No LLM key configured (GOOGLE_GENERATIVE_AI_API_KEYS, OPENAI_API_KEY or ANTHROPIC_API_KEY).");
+  let lastErr: unknown = null;
+  for (let i = 0; i < routes.length; i++) {
+    const r = routes[i];
+    try {
+      return await runOnce(opts, modelFor(r), r, i + 1);
+    } catch (err) {
+      lastErr = err;
+      if (!isRouteError(err)) throw err;
+      console.warn(`[agent] ${r.provider}/${r.model} key #${r.keyIndex + 1} failed (${err instanceof Error ? err.message.slice(0, 120) : "error"}); trying next route`);
+    }
+  }
+  throw new Error(`All ${routes.length} model routes failed. Last error: ${lastErr instanceof Error ? lastErr.message.slice(0, 200) : "unknown"}`);
+}
+
+async function runOnce(opts: RunOpts, model: LanguageModel, route: LlmRoute | null, attempts: number): Promise<AgentRun> {
   const ctx: ToolContext = { provider: opts.provider, latest: opts.previous, trace: [] };
   const h = createToolHandlers(ctx);
 
   const agent = new ToolLoopAgent({
-    model: opts.model ?? model(),
+    model,
+    maxRetries: 0,
     instructions: instructions(opts.today, opts.provider.mode),
     stopWhen: stepCountIs(8),
     tools: {
@@ -98,5 +140,6 @@ export async function runAgent(opts: {
     analysis: ctx.latest,
     verification,
     steps: res.steps.length,
+    route: route ? { provider: route.provider, model: route.model, keyIndex: route.keyIndex, attempts } : null,
   };
 }

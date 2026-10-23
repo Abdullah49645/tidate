@@ -7,7 +7,11 @@
  *
  *   C(d) = sum over in-window events i of  A_i * S_i * W(|d - d_i|)
  *
- *   A_i  Qloo affinity of the competing act given the target-act signal
+ *   A_i  relative affinity: the percentile of the act's Qloo affinity (given the
+ *        target-act signal) among all matched acts in the market window. Live
+ *        validation showed raw Qloo affinity is compressed (unrelated acts ~0.74,
+ *        near-identical acts ~0.98), so the percentile is used for weighting and
+ *        the raw value is kept for display. Falls back to raw when not provided.
  *   S_i  size weight = Qloo global popularity percentile (0.5 if missing, flagged)
  *   W    temporal proximity weight (step function below)
  *
@@ -24,7 +28,15 @@ import type {
   UncertaintyFlag,
 } from "../types";
 
-export const SCORING_VERSION = "undertow-score/1.0.0";
+export const SCORING_VERSION = "undertow-score/1.2.0";
+
+/**
+ * Closeness emphasis applied to relative affinity: weight = rel ^ AFFINITY_EXPONENT.
+ * Chosen from a stated principle, not fitted to outcomes: an act of typical
+ * affinity for the market (rel 0.5) should count about a tenth as much as an act
+ * in the top tenth (rel 0.9): 0.5^4 / 0.9^4 = 0.095.
+ */
+export const AFFINITY_EXPONENT = 4;
 
 /** Neutral size weight used when Qloo returns no popularity for a matched act. */
 export const IMPUTED_POPULARITY = 0.5;
@@ -86,8 +98,8 @@ export interface PreparedEvents {
 /**
  * Removes events that must not contribute to a score, with an explicit reason
  * for each. Ticketmaster often lists the same show several times (VIP
- * packages, platinum seats, parking); those are collapsed to one record keyed
- * on (venue, local date, primary performer).
+ * packages, platinum seats, separate venue records); those are collapsed to
+ * one record keyed on (local date, primary performer name).
  */
 export function prepareEvents(
   events: CompetingEvent[],
@@ -121,8 +133,9 @@ export function prepareEvents(
       excluded.push({ ...base, reason: "date-tba" });
       continue;
     }
-    const primary = e.performers[0]?.attractionId ?? normaliseName(e.performers[0]?.name ?? e.name);
-    const key = `${e.venue.id ?? normaliseName(e.venue.name)}|${e.localDate}|${primary}`;
+    // Same act on the same day counts once, even if listed at two venue records or as VIP packages.
+    const primary = normaliseName(e.performers[0]?.name ?? e.name);
+    const key = `${e.localDate}|${primary}`;
     if (seen.has(key)) {
       excluded.push({ ...base, reason: "duplicate" });
       continue;
@@ -144,8 +157,37 @@ export interface PerformerLink {
 }
 
 export interface SignalLookup {
+  /** Raw Qloo affinity (query.affinity). */
   affinity: number | null;
   popularity: number | null;
+  /** Percentile of `affinity` within the market pool (0..1). Used for weighting when present. */
+  relAffinity?: number | null;
+}
+
+/**
+ * Mid-rank percentile of each entity's raw affinity among all entities with an
+ * affinity value: (count below + half of ties) / n. Deterministic and
+ * order-independent. Entities without affinity get null.
+ */
+export function relativeAffinities(signals: Record<string, SignalLookup>): Record<string, SignalLookup> {
+  const vals = Object.values(signals)
+    .map((s) => s.affinity)
+    .filter((a): a is number => a !== null && Number.isFinite(a))
+    .sort((a, b) => a - b);
+  const n = vals.length;
+  const out: Record<string, SignalLookup> = {};
+  for (const [id, s] of Object.entries(signals)) {
+    if (s.affinity === null || !Number.isFinite(s.affinity) || n === 0) {
+      out[id] = { ...s, relAffinity: null };
+      continue;
+    }
+    let lo = 0;
+    while (lo < n && vals[lo] < s.affinity) lo++;
+    let hi = lo;
+    while (hi < n && vals[hi] === s.affinity) hi++;
+    out[id] = { ...s, relAffinity: (lo + (hi - lo) / 2) / n };
+  }
+  return out;
 }
 
 export interface ScoreInput {
@@ -157,6 +199,12 @@ export interface ScoreInput {
   signals: Record<string, SignalLookup>;
   /** eventIds the user chose to leave out of the what-if calculation. */
   ignoredEventIds?: string[];
+  /**
+   * Contribution of a typical matched act at full timing weight (median of
+   * affinity weight x size over matched acts). Used to estimate unscored shows
+   * "as if typical" for the second robustness check. Defaults to 0.
+   */
+  typicalUnit?: number;
 }
 
 function finite01(x: number | null | undefined): number | null {
@@ -169,6 +217,7 @@ export function scoreContribution(
   event: CompetingEvent,
   links: PerformerLink[],
   signals: Record<string, SignalLookup>,
+  typicalUnit = 0,
 ): Contribution {
   const daysApart = dayDiff(date, event.localDate!);
   const w = temporalWeight(daysApart);
@@ -179,6 +228,8 @@ export function scoreContribution(
     name: string;
     entityId: string;
     affinity: number;
+    weight: number;
+    relAffinity: number | null;
     popularity: number | null;
     size: number;
     product: number;
@@ -195,15 +246,17 @@ export function scoreContribution(
       anyMissingAffinity = true;
       continue;
     }
+    const relAffinity = finite01(sig?.relAffinity);
+    const weight = relAffinity !== null ? Math.pow(relAffinity, AFFINITY_EXPONENT) : affinity;
     const popularity = finite01(sig?.popularity);
     const size = popularity ?? IMPUTED_POPULARITY;
-    const product = affinity * size;
+    const product = weight * size;
     if (
       !best ||
       product > best.product ||
       (product === best.product && link.entityId.localeCompare(best.entityId) < 0)
     ) {
-      best = { name: link.name, entityId: link.entityId, affinity, popularity, size, product };
+      best = { name: link.name, entityId: link.entityId, affinity, weight, relAffinity, popularity, size, product };
     }
   }
 
@@ -226,11 +279,14 @@ export function scoreContribution(
     daysApart,
     temporalWeight: w,
     affinity: best?.affinity ?? null,
+    relativeAffinity: best?.relAffinity ?? null,
+    affinityWeight: best?.weight ?? null,
     popularity: best?.popularity ?? null,
     sizeWeight: best?.size ?? null,
     contribution,
     // Worst case for an unscoreable event: perfect affinity at full size.
     upperBound: contribution ?? w,
+    typicalEstimate: contribution ?? typicalUnit * w,
     scored: contribution !== null,
     flags,
   };
@@ -271,7 +327,7 @@ export function scoreDates(input: ScoreInput): DateScore[] {
       if (!e.localDate || ignored.has(e.eventId)) continue;
       const w = temporalWeight(dayDiff(date, e.localDate));
       if (w === 0) continue;
-      contributions.push(scoreContribution(date, e, input.links[e.eventId] ?? [], input.signals));
+      contributions.push(scoreContribution(date, e, input.links[e.eventId] ?? [], input.signals, input.typicalUnit ?? 0));
     }
     contributions.sort(
       (a, b) =>
@@ -281,11 +337,13 @@ export function scoreDates(input: ScoreInput): DateScore[] {
     );
     const score = sumScored(contributions);
     const upperBound = score + contributions.filter((c) => !c.scored).reduce((s, c) => s + c.upperBound, 0);
+    const typicalScore = score + contributions.filter((c) => !c.scored).reduce((s, c) => s + c.typicalEstimate, 0);
     const baselineWeighted = contributions.reduce((s, c) => s + c.temporalWeight, 0);
     return {
       date,
       score,
       upperBound,
+      typicalScore,
       rank: 0,
       baselineCount: contributions.length,
       baselineWeighted,
@@ -331,7 +389,7 @@ export function explainDate(d: DateScore): string {
         ? "the same night"
         : `${Math.abs(top.daysApart)} day${Math.abs(top.daysApart) === 1 ? "" : "s"} ${top.daysApart > 0 ? "later" : "earlier"}`;
     parts.push(
-      `${pct(share)} of the score comes from ${top.performer ?? top.eventName} at ${top.venueName}, ${when} (affinity ${fmt(top.affinity ?? 0)}, popularity ${top.popularity === null ? "imputed" : fmt(top.popularity)}).`,
+      `${pct(share)} of the score comes from ${top.performer ?? top.eventName} at ${top.venueName}, ${when} (Qloo affinity ${fmt(top.affinity ?? 0)}${top.relativeAffinity !== null ? `, higher than ${pct(top.relativeAffinity)} of acts nearby` : ""}; popularity ${top.popularity === null ? "imputed" : fmt(top.popularity)}).`,
     );
     const concentrated = share >= 0.6;
     parts.push(concentrated ? "Risk is concentrated in one show." : "Risk is spread across several shows.");
@@ -348,6 +406,7 @@ export function buildVerdict(dates: DateScore[]): RankingVerdict {
     return {
       recommendedDate: null,
       robust: false,
+      holdsIfTypical: false,
       margin: null,
       baselineAgrees: false,
       summary: "No candidate dates to rank.",
@@ -360,11 +419,13 @@ export function buildVerdict(dates: DateScore[]): RankingVerdict {
   const runnerUp = rest[0] ?? null;
   const margin = runnerUp ? runnerUp.score - best.score : null;
   const robust = rest.every((o) => best.upperBound < o.score);
+  // Second tier: unscored shows on every date assumed to be as close as a typical matched act.
+  const holdsIfTypical = rest.every((o) => best.typicalScore < o.typicalScore);
   const baselineBest = [...dates].sort((a, b) => a.baselineRank - b.baselineRank)[0];
   const baselineAgrees = baselineBest.date === best.date;
 
   const whatWouldChange: string[] = [];
-  if (!robust) {
+  if (!robust && !holdsIfTypical) {
     const unscored = best.contributions.filter((c) => !c.scored).sort((a, b) => b.upperBound - a.upperBound);
     for (const c of unscored.slice(0, 2)) {
       whatWouldChange.push(
@@ -400,7 +461,7 @@ export function buildVerdict(dates: DateScore[]): RankingVerdict {
   if (!baselineAgrees && ordered.length > 1) {
     summary += ` A plain count of nearby shows would have picked ${baselineBest.date} instead.`;
   }
-  return { recommendedDate: best.date, robust, margin, baselineAgrees, summary, whatWouldChange };
+  return { recommendedDate: best.date, robust, holdsIfTypical: ordered.length === 1 ? true : holdsIfTypical, margin, baselineAgrees, summary, whatWouldChange };
 }
 
 export interface DateDiffRow {
@@ -435,4 +496,20 @@ export function diffDates(a: DateScore, b: DateScore): DateDiffRow[] {
   for (const c of b.contributions) touch(c).b = c.contribution;
   for (const r of rows.values()) r.delta = (r.a ?? 0) - (r.b ?? 0);
   return [...rows.values()].sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta) || x.eventId.localeCompare(y.eventId));
+}
+
+/** Median of (affinity weight x size) over matched acts with an affinity: the "typical act" unit. */
+export function typicalUnit(signals: Record<string, SignalLookup>): number {
+  const vals: number[] = [];
+  for (const s of Object.values(signals)) {
+    const a = finite01(s.affinity);
+    if (a === null) continue;
+    const rel = finite01(s.relAffinity);
+    const w = rel !== null ? Math.pow(rel, AFFINITY_EXPONENT) : a;
+    vals.push(w * (finite01(s.popularity) ?? IMPUTED_POPULARITY));
+  }
+  if (!vals.length) return 0;
+  vals.sort((x, y) => x - y);
+  const m = Math.floor(vals.length / 2);
+  return vals.length % 2 ? vals[m] : (vals[m - 1] + vals[m]) / 2;
 }

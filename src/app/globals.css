@@ -1930,3 +1930,10 @@ a:hover {
 .eyebrow.caution {
   color: var(--orange);
 }
+
+.stat small {
+  display: block;
+  font-size: 12px;
+  color: var(--text-2);
+  margin-top: 1px;
+}

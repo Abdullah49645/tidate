@@ -11,11 +11,23 @@ const MATCH_TEXT: Partial<Record<MatchStatus, string>> = {
   weak: "No exact match in Qloo",
   "not-found": "Not in Qloo",
   error: "Qloo lookup failed",
+  "not-checked": "Not looked up in time; run again to check",
 };
+
+/** "Closer than 92% of acts nearby" from the relative affinity percentile. */
+export function closeness(rel: number | null): string | null {
+  if (rel === null) return null;
+  const pct = Math.round(rel * 100);
+  if (pct >= 50) return `Closer than ${pct}% of acts nearby`;
+  return `Further than ${100 - pct}% of acts nearby`;
+}
 
 function reason(c: Contribution, e: CompetingEvent | undefined, resolutions: Record<string, ArtistResolution>): string | null {
   if (c.scored) {
     const notes: string[] = [];
+    const perf = e?.performers.find((p) => p.name === c.performer);
+    if (perf?.fromSplit) notes.push("Matched from a multi-act listing");
+    if (perf?.fromTitle) notes.push("Name taken from the event title");
     if (c.flags.includes("popularity-imputed")) notes.push("Popularity unavailable, neutral 0.50 used");
     if (c.flags.includes("rescheduled")) notes.push("Rescheduled");
     return notes.length ? notes.join(" · ") : null;
@@ -146,6 +158,7 @@ export function ShowList({
                     <div className="stat">
                       <span>Qloo affinity</span>
                       <b>{c.scored ? fmt2(c.affinity) : "–"}</b>
+                      {c.scored && closeness(c.relativeAffinity) && <small>{closeness(c.relativeAffinity)}</small>}
                     </div>
                     <div className="stat">
                       <span>Popularity</span>
@@ -162,8 +175,8 @@ export function ShowList({
                     <div className="foot">
                       {e && e.name !== c.performer ? `Listed as “${e.name}”. ` : ""}
                       {c.scored
-                        ? `${fmt2(c.affinity)} × ${c.popularity === null ? "0.50" : fmt2(c.popularity)} × ${c.temporalWeight.toFixed(2)} = ${fmt2(c.contribution)}. `
-                        : "Not included in the score; counted at its worst case when checking whether the ranking could flip. "}
+                        ? `Closeness weight ${fmt2(c.affinityWeight)} × popularity ${c.popularity === null ? "0.50" : fmt2(c.popularity)} × timing ${c.temporalWeight.toFixed(2)} = ${fmt2(c.contribution)}. `
+                        : "Not in the score. It's counted as a worst case, and as a typical act, when checking whether the ranking could flip. "}
                       {e?.url ? (
                         <a href={e.url} target="_blank" rel="noreferrer">
                           View on Ticketmaster

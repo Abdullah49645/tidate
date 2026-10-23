@@ -19,7 +19,9 @@ import type { AffinitySignal, ArtistCandidate } from "../types";
 const ARTIST = "urn:entity:artist";
 const MAX_TAKE = 50;
 
-const limiter = new Limiter(4, 60);
+// Hackathon key limits observed live: 10 requests/second, 50,000/month.
+// 130 ms minimum spacing between request starts keeps us at <= 8 per second.
+const limiter = new Limiter(3, 130);
 const searchCache = new TtlCache<ArtistCandidate[]>(24 * 3600 * 1000);
 const affinityCache = new TtlCache<AffinitySignal>(24 * 3600 * 1000, 20_000);
 
@@ -86,6 +88,7 @@ export class QlooClient {
         url: `${this.baseUrl}/search?${qs}`,
         headers: this.headers,
         limiter,
+        retries: 4,
         label: "Qloo artist search",
       });
       const parsed = SearchResponse.safeParse(json);
@@ -132,6 +135,7 @@ export class QlooClient {
           url: `${this.baseUrl}/v2/insights?${qs}`,
           headers: this.headers,
           limiter,
+          retries: 4,
           label: "Qloo insights (affinity)",
         });
         const parsed = InsightsResponse.safeParse(json);

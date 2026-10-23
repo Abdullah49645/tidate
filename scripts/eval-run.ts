@@ -4,7 +4,7 @@
  * Writes aggregate statistics only (no Qloo values) to docs/eval-results.json.
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { buildVerdict, dayDiff, normaliseName, prepareEvents, scoreDates, type PerformerLink, type SignalLookup } from "../src/lib/scoring/engine";
+import { SCORING_VERSION, buildVerdict, dayDiff, normaliseName, prepareEvents, relativeAffinities, scoreDates, typicalUnit, type PerformerLink, type SignalLookup } from "../src/lib/scoring/engine";
 import { BAD_GENRES, EVAL_MARKETS, type MarketData } from "./eval-collect";
 
 const MIN_CANCELLED = 30;
@@ -71,7 +71,7 @@ function main() {
     process.exit(1);
   }
 
-  const summary: Record<string, unknown> = { generatedAt: new Date().toISOString(), markets: data.map((d) => d.market) };
+  const summary: Record<string, unknown> = { generatedAt: new Date().toISOString(), scoringVersion: SCORING_VERSION, markets: data.map((d) => d.market), window: data[0]?.window };
   const coverage = data.map((d) => {
     const rs = Object.values(d.resolutions);
     return {
@@ -167,9 +167,12 @@ function main() {
       const evs = eligible.filter((e) => !e.performers.some((p) => d.resolutions[normaliseName(p.name)]?.entityId === t.entityId));
       const links: Record<string, PerformerLink[]> = {};
       for (const e of evs) links[e.eventId] = e.performers.map((p) => ({ name: p.name, entityId: d.resolutions[normaliseName(p.name)]?.entityId ?? null }));
-      const signals: Record<string, SignalLookup> = {};
-      for (const [cid, s] of Object.entries(sig)) signals[cid] = { affinity: s.affinity, popularity: s.popularity };
-      const scored = scoreDates({ candidateDates: dates, events: evs, links, signals });
+      // Same as production: relative affinity within the pool of acts linked to these events.
+      const pool = new Set(Object.values(links).flat().map((l) => l.entityId).filter((x): x is string => !!x));
+      const raw: Record<string, SignalLookup> = {};
+      for (const [cid, s] of Object.entries(sig)) if (pool.has(cid)) raw[cid] = { affinity: s.affinity, popularity: s.popularity };
+      const signals = relativeAffinities(raw);
+      const scored = scoreDates({ candidateDates: dates, events: evs, links, signals, typicalUnit: typicalUnit(signals) });
       if (scored.every((x) => x.inWindowEvents === 0)) {
         noCompetition++;
         continue;
@@ -203,8 +206,8 @@ function main() {
       const others = d.events.filter((o) => o.eventId !== e.eventId && o.localDate && o.status !== "canceled" && o.status !== "postponed");
       const links: Record<string, PerformerLink[]> = {};
       for (const o of others) links[o.eventId] = o.performers.map((p) => ({ name: p.name, entityId: d.resolutions[normaliseName(p.name)]?.entityId ?? null }));
-      const signals: Record<string, SignalLookup> = Object.fromEntries(Object.entries(d.affinity[tid]).map(([k, s]) => [k, { affinity: s.affinity, popularity: s.popularity }]));
-      const [s] = scoreDates({ candidateDates: [e.localDate], events: others, links, signals });
+      const signals = relativeAffinities(Object.fromEntries(Object.entries(d.affinity[tid]).map(([k, s]) => [k, { affinity: s.affinity, popularity: s.popularity }])));
+      const [s] = scoreDates({ candidateDates: [e.localDate], events: others, links, signals, typicalUnit: typicalUnit(signals) });
       (isCancelled ? cancelled : active).push(s.score);
     }
   }

@@ -49,8 +49,10 @@ export function DateCards({
                 <dd>{top ? (top.performer ?? top.eventName) : "None"}</dd>
               </div>
               <div>
-                <dt>Evidence</dt>
-                <dd>{EVIDENCE[d.evidence]}</dd>
+                <dt>Matched in Qloo</dt>
+                <dd title={`Evidence: ${EVIDENCE[d.evidence]}`}>
+                  {d.inWindowEvents ? `${d.scoredEvents} of ${d.inWindowEvents}` : "–"}
+                </dd>
               </div>
             </dl>
           </button>
