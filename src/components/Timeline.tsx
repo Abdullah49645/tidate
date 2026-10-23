@@ -27,7 +27,7 @@ export function Timeline({ d, scale }: { d: DateScore; scale: number }) {
           </span>
           <span>
             <i className="lg-dash" />
-            Couldn&apos;t be scored
+            Not matched, shown as a typical act
           </span>
           <span>
             <i className="lg-dot" />
@@ -48,8 +48,8 @@ export function Timeline({ d, scale }: { d: DateScore; scale: number }) {
                 <span
                   key={c.eventId}
                   className={`tl-bar${c.scored ? "" : " unscored"}`}
-                  style={{ height: `${c.scored ? pct(c.contribution ?? 0) : pct(c.upperBound)}%` }}
-                  title={`${c.performer ?? c.eventName}, ${fmtShort(c.eventDate)}: ${c.scored ? fmt2(c.contribution) : "not scored"}`}
+                  style={{ height: `${c.scored ? pct(c.contribution ?? 0) : pct(c.typicalEstimate)}%` }}
+                  title={`${c.performer ?? c.eventName}, ${fmtShort(c.eventDate)}: ${c.scored ? fmt2(c.contribution) : "not matched in Qloo (drawn as a typical act)"}`}
                 />
               ))}
             </div>

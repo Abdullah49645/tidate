@@ -2,6 +2,29 @@
 
 Concise record so work can resume without context. Newest first.
 
+## 2026-10-23
+
+**State:** live integrations verified; evaluation run; UI redesigned (Apple-style);
+not pushed to GitHub (name is a placeholder; user asked to hold).
+
+Done
+- Live validation (docs/API_VALIDATION.md). Key finding: Qloo artist affinity is
+  compressed (unrelated ~0.74, near-identical ~0.98) -> scoring v1.2.0 uses
+  rank among nearby acts ^4 for weighting; raw value still shown.
+- Two-tier robustness (worst case + typical act), closest-first lookups with a
+  25 s budget, shared `use cache: remote` cache for Qloo search (second run ~10 s),
+  title fallback and bill splitting for Ticketmaster listings, (date, headliner) de-dup.
+- Qloo throttling: 8 req/s, 4 retries honouring x-second-ratelimit-reset.
+- Gemini: key #1 blocked (403); keys #2/#3 work on gemini-3.5-flash. Agent rotates
+  keys x models on 401/403/404/429/5xx; answers in plain text.
+- Evaluation (docs/EVALUATION.md): E1 AUC 0.618 [0.590, 0.647] vs popularity 0.556;
+  E2 Qloo changes the recommendation in 27% of 150 scenarios; E3 insufficient (11 < 30).
+
+Next
+1. Pick the final name; then push and deploy on Vercel (env vars from .env.example).
+2. Verify `/api/status`, a live analysis and `/api/mcp` on the deployed URL.
+3. Devpost write-up from docs/SUBMISSION.md, with the evaluation numbers.
+
 ## 2026-10-22
 
 **State:** core product complete in demo mode; live validation, evaluation and

@@ -5,7 +5,7 @@
  * Resumable: markets already collected are skipped.
  */
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { getMarket } from "../src/lib/markets";
 import { QlooClient } from "../src/lib/qloo/client";
 import { classifyMatch } from "../src/lib/qloo/resolve";
@@ -119,6 +119,28 @@ async function collectMarket(id: string, qloo: QlooClient, start: string, end: s
   };
 }
 
+/** Re-fetches affinity for targets whose request failed, one target at a time. */
+async function repair(qloo: QlooClient) {
+  for (const m of EVAL_MARKETS) {
+    const file = `${OUT}/${m}.json`;
+    if (!existsSync(file)) continue;
+    const d: MarketData = JSON.parse(readFileSync(file, "utf8"));
+    const missing = d.targets.filter((t) => !d.affinity[t.entityId]);
+    if (!missing.length) continue;
+    const all = Object.values(d.resolutions).map((r) => r.entityId).filter((x): x is string => !!x);
+    let fixed = 0;
+    for (const t of missing) {
+      await new Promise((r) => setTimeout(r, 1500));
+      const sig = await qloo.affinities(t.entityId, [...new Set(all)].filter((x) => x !== t.entityId)).catch(() => null);
+      if (!sig) continue;
+      d.affinity[t.entityId] = Object.fromEntries(Object.entries(sig).map(([k, v]) => [k, { affinity: v.affinity, popularity: v.popularity }]));
+      fixed++;
+    }
+    writeFileSync(file, JSON.stringify(d));
+    console.log(`  ${m}: repaired ${fixed} of ${missing.length} missing targets`);
+  }
+}
+
 async function main() {
   if (!QLOO || !TM) {
     console.error("QLOO_API_KEY and TICKETMASTER_API_KEY are required in .env.local");
@@ -129,6 +151,10 @@ async function main() {
   const start = addDays(today, 21);
   const end = addDays(start, 41);
   const qloo = new QlooClient(QLOO, process.env.QLOO_BASE_URL ?? "https://hackathon.api.qloo.com");
+  if (process.argv.includes("--repair")) {
+    await repair(qloo);
+    return;
+  }
   console.log(`Collecting ${EVAL_MARKETS.length} markets, window ${start}..${end}`);
   for (const m of EVAL_MARKETS) {
     const file = `${OUT}/${m}.json`;

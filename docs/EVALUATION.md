@@ -64,7 +64,58 @@ We run three experiments the data can actually support.
 
 ## Results
 
-_Pending: requires live API keys. Run `npm run eval:collect` then `npm run eval:run`._
+Collected 2026-10-23 (window 2026-11-13 to 2026-12-24), scoring `undertow-score/1.2.0`.
+Aggregate output: [`eval-results.json`](eval-results.json). Raw data stays private in `.eval-data/`.
+
+### Data coverage
+
+| Market | Events | Performers | Exact Qloo match | Targets with affinity |
+| --- | --- | --- | --- | --- |
+| chicago | 325 | 415 | 292 (70%) | 26 |
+| new-york | 593 | 558 | 349 (63%) | 30 |
+| los-angeles | 592 | 805 | 508 (63%) | 30 |
+| austin | 116 | 153 | 101 (66%) | 25 |
+| nashville | 220 | 251 | 175 (70%) | 25 |
+| atlanta | 260 | 393 | 243 (62%) | 29 |
+
+Overall 1,668 of 2,575 performers (65%) matched exactly. No market hit Ticketmaster's paging limit.
+Two Los Angeles targets first failed on Qloo rate limits and were re-fetched with a slower repair pass before analysis.
+
+### E1: Qloo affinity tracks audience overlap. **Association observed.**
+
+| | AUC | 95% cluster-bootstrap CI |
+| --- | --- | --- |
+| Qloo affinity | **0.618** | 0.590 to 0.647 |
+| Popularity only (control) | 0.556 | 0.544 to 0.568 |
+
+146 targets, 37,913 target–competitor pairs (7,544 same genre). Qloo returned an
+affinity for 94.7% of requested pairs.
+
+| Market | Pairs | AUC affinity | AUC popularity |
+| --- | --- | --- | --- |
+| chicago | 6,744 | 0.625 | 0.587 |
+| new-york | 8,100 | 0.622 | 0.535 |
+| los-angeles | 10,764 | 0.648 | 0.567 |
+| austin | 2,400 | 0.585 | 0.525 |
+| nashville | 4,080 | 0.578 | 0.530 |
+| atlanta | 5,825 | 0.591 | 0.552 |
+
+Affinity ranks a same-genre competitor above a different-genre one about 62% of the time, against 50% by chance
+and 56% for popularity alone. The interval excludes 0.5, the two intervals do not overlap, and affinity beats the
+popularity control in all six markets. The effect is modest, and genre is a coarse proxy for shared audiences, so
+this supports, but does not prove, that affinity reflects audience overlap.
+
+### E2: Qloo changes the decision. **Descriptive.**
+
+In 150 scenarios (each target, first three Saturdays of the window), the Qloo-weighted ranking recommends a
+different date from the plain count in **27%** of cases, and orders the dates differently
+in 56%. This shows Qloo materially changes decisions; it cannot show the changed decisions are
+better, because no sales or attendance outcomes are available.
+
+### E3: Cancellation association. **Insufficient evidence.**
+
+17 cancelled or postponed events in the window; 11 had a matched performer, below the
+pre-set minimum of 30. No association is claimed.
 
 ## Deviations
 

@@ -1,0 +1,152 @@
+{
+  "generatedAt": "2026-10-23T18:00:14.279Z",
+  "scoringVersion": "undertow-score/1.2.0",
+  "markets": [
+    "chicago",
+    "new-york",
+    "los-angeles",
+    "austin",
+    "nashville",
+    "atlanta"
+  ],
+  "window": {
+    "start": "2026-11-13",
+    "end": "2026-12-24"
+  },
+  "coverage": [
+    {
+      "market": "chicago",
+      "events": 325,
+      "truncated": false,
+      "performers": 415,
+      "resolvedExact": 292,
+      "ambiguous": 0,
+      "weakOrNotFound": 123,
+      "errors": 0,
+      "targets": 26,
+      "targetsWithAffinity": 26
+    },
+    {
+      "market": "new-york",
+      "events": 593,
+      "truncated": true,
+      "performers": 558,
+      "resolvedExact": 349,
+      "ambiguous": 0,
+      "weakOrNotFound": 209,
+      "errors": 0,
+      "targets": 30,
+      "targetsWithAffinity": 30
+    },
+    {
+      "market": "los-angeles",
+      "events": 592,
+      "truncated": false,
+      "performers": 805,
+      "resolvedExact": 508,
+      "ambiguous": 1,
+      "weakOrNotFound": 296,
+      "errors": 0,
+      "targets": 30,
+      "targetsWithAffinity": 30
+    },
+    {
+      "market": "austin",
+      "events": 116,
+      "truncated": false,
+      "performers": 153,
+      "resolvedExact": 101,
+      "ambiguous": 0,
+      "weakOrNotFound": 52,
+      "errors": 0,
+      "targets": 25,
+      "targetsWithAffinity": 25
+    },
+    {
+      "market": "nashville",
+      "events": 220,
+      "truncated": false,
+      "performers": 251,
+      "resolvedExact": 175,
+      "ambiguous": 0,
+      "weakOrNotFound": 76,
+      "errors": 0,
+      "targets": 25,
+      "targetsWithAffinity": 25
+    },
+    {
+      "market": "atlanta",
+      "events": 260,
+      "truncated": false,
+      "performers": 393,
+      "resolvedExact": 243,
+      "ambiguous": 0,
+      "weakOrNotFound": 150,
+      "errors": 0,
+      "targets": 29,
+      "targetsWithAffinity": 29
+    }
+  ],
+  "E1": {
+    "targets": 146,
+    "pairs": 37913,
+    "sameGenrePairs": 7544,
+    "affinityReturnedShare": 0.9471961492178098,
+    "aucAffinity": 0.6175977462017468,
+    "ci95Affinity": {
+      "lo": 0.5903136486527636,
+      "hi": 0.646662915475126
+    },
+    "aucPopularityControl": 0.5563173858500501,
+    "ci95Popularity": {
+      "lo": 0.5444536485884842,
+      "hi": 0.5676033820254767
+    },
+    "perMarket": {
+      "chicago": {
+        "pairs": 6744,
+        "aucAffinity": 0.625025916434503,
+        "aucPopularity": 0.5869952201041262
+      },
+      "new-york": {
+        "pairs": 8100,
+        "aucAffinity": 0.6216546574860881,
+        "aucPopularity": 0.5350498617787176
+      },
+      "los-angeles": {
+        "pairs": 10764,
+        "aucAffinity": 0.6482967622982554,
+        "aucPopularity": 0.5667051881244822
+      },
+      "austin": {
+        "pairs": 2400,
+        "aucAffinity": 0.584779224528088,
+        "aucPopularity": 0.5248645175036168
+      },
+      "nashville": {
+        "pairs": 4080,
+        "aucAffinity": 0.5777233220428625,
+        "aucPopularity": 0.5298484788810056
+      },
+      "atlanta": {
+        "pairs": 5825,
+        "aucAffinity": 0.5905494244207526,
+        "aucPopularity": 0.5515352981055809
+      }
+    },
+    "verdict": "association observed"
+  },
+  "E2": {
+    "scenarios": 150,
+    "skippedNoCompetition": 0,
+    "recommendationDiffersShare": 0.2733333333333333,
+    "rankingDiffersShare": 0.56
+  },
+  "E3": {
+    "cancelledOrPostponedEvents": 17,
+    "cancelledWithScore": 11,
+    "activeWithScore": 205,
+    "auc": null,
+    "verdict": "insufficient evidence (11 < 30)"
+  }
+}

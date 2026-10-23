@@ -161,7 +161,12 @@ audience overlap (against Ticketmaster's independent genre labels, with a popula
 control), how often Qloo changes the recommended date versus a plain count, and an
 exploratory cancellation check with a pre-set minimum sample.
 
-Results are reported in that file once collected.
+**Results (October 2026, 6 US markets, 146 target artists):** Qloo affinity ranks
+same-genre competitors above different-genre ones with AUC 0.618 (95% CI
+0.590–0.647), against 0.556 for popularity alone, and beats popularity in every
+market. Qloo weighting changes the recommended date in 27% of 150 real
+scenarios. The cancellation check had too few cases (11 < 30) to conclude
+anything. Full results: [docs/EVALUATION.md](docs/EVALUATION.md).
 
 ## Limitations
 

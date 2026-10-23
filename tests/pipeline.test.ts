@@ -213,3 +213,12 @@ describe("bill splitting", () => {
     expect(c.performer).toBe("Morrow & Finch");
   });
 });
+
+describe("title separators seen in live Ticketmaster data", () => {
+  it("handles w., x and presented by", async () => {
+    const { performerFromTitle } = await import("@/lib/pipeline");
+    expect(performerFromTitle("Ben Kweller w. Case Oats - NYE Show")).toBe("Ben Kweller");
+    expect(performerFromTitle("Pivot Gang x Saba - John Walt Day")).toBe("Pivot Gang");
+    expect(performerFromTitle("Anna von Hausswolff presented by Thalia Hall")).toBe("Anna von Hausswolff");
+  });
+});

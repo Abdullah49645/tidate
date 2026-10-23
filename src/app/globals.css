@@ -1937,3 +1937,8 @@ a:hover {
   color: var(--text-2);
   margin-top: 1px;
 }
+
+/* Keep the verdict clear of the sticky navigation when scrolled into view. */
+#verdict {
+  scroll-margin-top: 64px;
+}

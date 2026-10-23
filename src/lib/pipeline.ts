@@ -73,7 +73,7 @@ const RESOLVE_CONCURRENCY = 6;
 export function performerFromTitle(title: string): string | null {
   const head = title
     .replace(/\(.*?\)|\[.*?\]/g, " ")
-    .split(/\s+(?:-|–|—|:|\||@|w\/|with|feat\.?|ft\.?|featuring|presents|live at|live in)\s+|:\s+/i)[0]
+    .split(/\s+(?:-|–|—|:|\||@|w\/|w\.|x|with|feat\.?|ft\.?|featuring|presents|presented by|live at|live in)\s+|:\s+/i)[0]
     .replace(/\s+/g, " ")
     .trim();
   return head.length >= 2 && head.length <= 60 ? head : null;

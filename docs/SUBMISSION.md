@@ -90,8 +90,10 @@ Keep this list current; do not claim anything from the right column.
 
 | Verified (ran and observed) | Not yet verified |
 | --- | --- |
-| Engine, pipeline, agent loop (scripted model) and MCP JSON-RPC tests pass | Live Qloo responses (field names, affinity scale) |
-| Production build; UI demo flow in headless Chromium, desktop and phone widths | Live Ticketmaster coverage per market |
-| What-if, compare, ambiguous-artist and no-LLM states work in the browser | Agent with a real LLM |
-| | Evaluation results (E1–E3) |
-| | Deployed URL |
+| Live Qloo search and affinity (fields, scale, rate limits): docs/API_VALIDATION.md | Deployed URL |
+| Live Ticketmaster event search across 7 markets | MCP endpoint called by an external client over the internet |
+| End-to-end live analysis in the browser and via the API | Any effect on ticket sales (no outcome data exists) |
+| Agent with real Gemini, tool calling, key and model rotation | |
+| Evaluation E1–E3 run on live data; results in docs/EVALUATION.md | |
+| 60 automated tests, typecheck, lint, production build | |
+| MCP JSON-RPC calls against the handler (tests) | |
