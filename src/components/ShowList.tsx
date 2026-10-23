@@ -30,7 +30,7 @@ function reason(c: Contribution, e: CompetingEvent | undefined, resolutions: Rec
     if (perf?.fromTitle) notes.push("Name taken from the event title");
     if (c.flags.includes("popularity-imputed")) notes.push("Popularity unavailable, neutral 0.50 used");
     if (c.flags.includes("rescheduled")) notes.push("Rescheduled");
-    return notes.length ? notes.join(" · ") : null;
+    return notes.length ? notes.join(". ") : null;
   }
   if (c.flags.includes("affinity-missing")) return "Qloo returned no affinity";
   const statuses = (e?.performers ?? []).map((p) => resolutions[normaliseName(p.name)]?.status).filter(Boolean) as MatchStatus[];
@@ -131,7 +131,7 @@ export function ShowList({
                       <Chevron size={12} />
                     </div>
                     <div className="row-sub">
-                      {c.venueName} · {fmtShort(c.eventDate)} · {fmtRelative(c.daysApart).toLowerCase()}
+                      {c.venueName}, {fmtShort(c.eventDate)}, {fmtRelative(c.daysApart).toLowerCase()}
                     </div>
                     {note && <div className="row-note">{note}</div>}
                   </button>
@@ -196,7 +196,7 @@ export function ShowList({
                     <span>{e.performers[0]?.name ?? e.name}</span>
                   </div>
                   <div className="row-sub">
-                    {e.venue.name} · {e.localDate ? fmtShort(e.localDate) : "TBA"} · switched off
+                    {e.venue.name}, {e.localDate ? fmtShort(e.localDate) : "TBA"}. Switched off.
                   </div>
                 </div>
                 <div className="row-value">

@@ -14,6 +14,9 @@ export interface RequestValue {
   radiusMiles: number;
 }
 
+/** A real live query where Qloo and a headcount disagree (checked against live data in October 2026). */
+const LIVE_EXAMPLE = { artist: "Kirk Franklin", marketId: "nashville", dates: ["2026-11-27", "2026-12-04", "2026-12-10"] };
+
 interface Lookup {
   query: string;
   status: MatchStatus | "idle" | "loading" | "error";
@@ -144,7 +147,7 @@ export function CommandBar({
                   onClick={() => set({ artist: c.name, artistEntityId: c.entityId })}
                 >
                   <span>{c.name}</span>
-                  <small>{[c.disambiguation, c.popularity !== null ? `popularity ${fmt2(c.popularity)}` : null].filter(Boolean).join(" · ")}</small>
+                  <small>{[c.disambiguation, c.popularity !== null ? `popularity ${fmt2(c.popularity)}` : null].filter(Boolean).join(", ")}</small>
                 </button>
               ))}
             </div>
@@ -212,6 +215,15 @@ export function CommandBar({
       </form>
 
       <div className="cmd-meta">
+        {mode === "live" && LIVE_EXAMPLE.dates[0] > new Date().toISOString().slice(0, 10) && (
+          <button
+            type="button"
+            className="btn-plain"
+            onClick={() => onChange({ ...value, artist: LIVE_EXAMPLE.artist, artistEntityId: undefined, marketId: LIVE_EXAMPLE.marketId, dates: [...LIVE_EXAMPLE.dates] })}
+          >
+            Try Kirk Franklin in Nashville
+          </button>
+        )}
         <button type="button" className="btn-plain" onClick={onAsk}>
           Ask in plain language
         </button>

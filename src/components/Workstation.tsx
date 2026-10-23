@@ -6,6 +6,7 @@ import { STEP_LABELS, rebuildScoringInputs, type PipelineOutcome, type ProgressE
 import { buildVerdict, scoreDates } from "@/lib/scoring/engine";
 import type { AnalysisResult, ArtistCandidate, DateScore, RankingVerdict } from "@/lib/types";
 import { AgentSheet } from "./AgentSheet";
+import { CalendarTile } from "./CalendarTile";
 import { CommandBar, type RequestValue } from "./CommandBar";
 import { DateCards } from "./DateCards";
 import { Details } from "./Details";
@@ -270,57 +271,68 @@ export function Workstation() {
 
         {result && view && (
           <div className="results">
-            <p className="run-summary">
-              Checked {result.events.length + result.excluded.length} shows in {result.market.label} · matched {matchedCount} of {resolutions.length} artists in Qloo
-            </p>
 
             <section className="verdict" id="verdict" aria-labelledby="verdict-title">
               {rec && (
-                <>
-                  <p className={`eyebrow${noEvidence ? " caution" : ""}`}>
-                    {noEvidence
-                      ? "Not enough data to rank these dates"
-                      : !anyShows
-                        ? `No competing shows found for ${artist}`
+                <div className={`verdict-layout${noEvidence || !anyShows ? " plain" : ""}`}>
+                  {!noEvidence && anyShows && <CalendarTile iso={rec} year={new Date(`${rec}T00:00:00Z`).getUTCFullYear() !== new Date().getUTCFullYear()} />}
+                  <div className="verdict-text">
+                    <p className={`eyebrow${noEvidence ? " caution" : ""}`}>
+                      {noEvidence
+                        ? "Not enough data to rank these dates"
+                        : !anyShows
+                          ? `No competing shows found for ${artist}`
+                          : view.dates.length > 1
+                            ? `Best of ${view.dates.length} dates in ${result.market.label}`
+                            : `Clash check in ${result.market.label}`}
+                    </p>
+                    <h2 id="verdict-title">
+                      {noEvidence || !anyShows
+                        ? `${view.dates.length} ${view.dates.length === 1 ? "date" : "dates"} checked`
                         : view.dates.length > 1
-                          ? `Best night for ${artist}`
-                          : `Clash check for ${artist}`}
-                  </p>
-                  <h2 id="verdict-title">{noEvidence || !anyShows ? `${view.dates.length} ${view.dates.length === 1 ? "date" : "dates"} checked` : fmtLong(rec)}</h2>
-                  <p className="lede">
-                    {noEvidence ? (
-                      <>
-                        There are {Math.max(...view.dates.map((d) => d.inWindowEvents))} shows nearby, but Qloo returned no affinity for any of them with {artist}, so there&apos;s nothing to
-                        weigh. The shows are listed below.
-                      </>
-                    ) : !anyShows ? (
-                      <>Ticketmaster lists no music events within two weeks of these dates in {result.market.label}. Shows sold elsewhere won&apos;t appear here.</>
-                    ) : view.dates.length > 1 && runnerUp ? (
-                      <>
-                        The least pull on {artist}&apos;s audience in {result.market.label}. It scores <strong>{fmt2(ordered[0].score)}</strong>, against{" "}
-                        <strong>{fmt2(runnerUp.score)}</strong> for {fmtDay(runnerUp.date)}.
-                      </>
-                    ) : (
-                      <>Clash score {fmt2(ordered[0]?.score)} from {ordered[0]?.inWindowEvents ?? 0} shows nearby.</>
-                    )}
-                  </p>
-                  <ul className="pills">
-                    {view.dates.length > 1 && !noEvidence && anyShows && (
-                      <li
-                        className={`pill ${view.verdict.robust || view.verdict.holdsIfTypical ? "good" : "warn"}`}
-                        title="Checked against shows Qloo couldn't match: once assuming each is a perfect match for your audience, once assuming each is a typical act nearby."
-                      >
-                        {view.verdict.robust
-                          ? "Holds even in the worst case"
-                          : view.verdict.holdsIfTypical
-                            ? "Holds unless unmatched acts are unusually close"
-                            : "Could change with unmatched acts"}
-                      </li>
-                    )}
-                    {view.dates.length > 1 && !noEvidence && anyShows && !view.verdict.baselineAgrees && <li className="pill blue">A headcount would pick differently</li>}
-                    {view.dates.length > 1 && !noEvidence && anyShows && view.verdict.baselineAgrees && <li className="pill">A headcount agrees</li>}
-                  </ul>
-                </>
+                          ? `${fmtLong(rec)} is ${artist}'s night.`
+                          : fmtLong(rec)}
+                    </h2>
+                    <p className="lede">
+                      {noEvidence ? (
+                        <>
+                          There are {Math.max(...view.dates.map((d) => d.inWindowEvents))} shows nearby, but Qloo returned no affinity for any of them with {artist}, so there&apos;s nothing
+                          to weigh. The shows are listed below.
+                        </>
+                      ) : !anyShows ? (
+                        <>Ticketmaster lists no music events within two weeks of these dates in {result.market.label}. Shows sold elsewhere won&apos;t appear here.</>
+                      ) : view.dates.length > 1 && runnerUp ? (
+                        <>
+                          The least pull on {artist}&apos;s audience: a clash score of <strong>{fmt2(ordered[0].score)}</strong>, against <strong>{fmt2(runnerUp.score)}</strong> for{" "}
+                          {fmtDay(runnerUp.date)}.
+                        </>
+                      ) : (
+                        <>
+                          Clash score <strong>{fmt2(ordered[0]?.score)}</strong> from {ordered[0]?.inWindowEvents ?? 0} shows nearby.
+                        </>
+                      )}
+                    </p>
+                    <ul className="pills">
+                      {view.dates.length > 1 && !noEvidence && anyShows && (
+                        <li
+                          className={`pill ${view.verdict.robust || view.verdict.holdsIfTypical ? "good" : "warn"}`}
+                          title="Checked against shows Qloo couldn't match: once assuming each is a perfect match for your audience, once assuming each is a typical act nearby."
+                        >
+                          {view.verdict.robust
+                            ? "Holds even in the worst case"
+                            : view.verdict.holdsIfTypical
+                              ? "Holds unless unmatched acts are unusually close"
+                              : "Could change with unmatched acts"}
+                        </li>
+                      )}
+                      {view.dates.length > 1 && !noEvidence && anyShows && !view.verdict.baselineAgrees && <li className="pill blue">A headcount would pick differently</li>}
+                      {view.dates.length > 1 && !noEvidence && anyShows && view.verdict.baselineAgrees && <li className="pill">A headcount agrees</li>}
+                    </ul>
+                    <p className="run-summary">
+                      Checked {result.events.length + result.excluded.length} shows in {result.market.label} and matched {matchedCount} of {resolutions.length} artists in Qloo.
+                    </p>
+                  </div>
+                </div>
               )}
               {ignored.size > 0 && (
                 <div className="whatif-bar" role="status">

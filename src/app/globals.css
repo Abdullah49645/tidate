@@ -2,7 +2,7 @@
    Tokens
    ============================================================ */
 :root {
-  --bg: #f5f5f7;
+  --bg: #f4f5f4;
   --card: #ffffff;
   --card-2: #fbfbfd;
   --fill: rgba(118, 118, 128, 0.12);
@@ -12,10 +12,10 @@
   --text-3: #86868b;
   --sep: rgba(0, 0, 0, 0.08);
   --sep-strong: rgba(0, 0, 0, 0.14);
-  --blue: #0071e3;
-  --blue-hover: #0077ed;
-  --blue-soft: rgba(0, 113, 227, 0.1);
-  --blue-faint: rgba(0, 113, 227, 0.05);
+  --blue: #0b6f86;
+  --blue-hover: #095e72;
+  --blue-soft: rgba(11, 111, 134, 0.1);
+  --blue-faint: rgba(11, 111, 134, 0.05);
   --green: #1d8a3b;
   --green-soft: rgba(52, 199, 89, 0.14);
   --orange: #b25e00;
@@ -26,6 +26,7 @@
   --shadow: 0 1px 1px rgba(0, 0, 0, 0.02), 0 4px 18px rgba(0, 0, 0, 0.05);
   --shadow-lift: 0 2px 4px rgba(0, 0, 0, 0.04), 0 12px 40px rgba(0, 0, 0, 0.1);
 
+  --serif: "Newsreader Variable", "New York", "Iowan Old Style", Georgia, serif;
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter Variable", "Helvetica Neue", Helvetica, Arial, sans-serif;
 
   --r-card: 20px;
@@ -47,10 +48,10 @@
     --text-3: #8e8e93;
     --sep: rgba(255, 255, 255, 0.1);
     --sep-strong: rgba(255, 255, 255, 0.18);
-    --blue: #2997ff;
-    --blue-hover: #47a6ff;
-    --blue-soft: rgba(41, 151, 255, 0.18);
-    --blue-faint: rgba(41, 151, 255, 0.08);
+    --blue: #5ac8db;
+    --blue-hover: #7ad4e3;
+    --blue-soft: rgba(90, 200, 219, 0.18);
+    --blue-faint: rgba(90, 200, 219, 0.08);
     --green: #30d158;
     --green-soft: rgba(48, 209, 88, 0.16);
     --orange: #ff9f0a;
@@ -1941,4 +1942,293 @@ a:hover {
 /* Keep the verdict clear of the sticky navigation when scrolled into view. */
 #verdict {
   scroll-margin-top: 64px;
+}
+
+
+/* ============================================================
+   Refinement layer: tide accent, editorial serif, calendar leaf
+   ============================================================ */
+:root {
+  --ink-on-accent: #ffffff;
+  --leaf: #fffdf9;
+  --hair: rgba(16, 40, 43, 0.07);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink-on-accent: #04252c;
+    --leaf: #1f2022;
+    --hair: rgba(255, 255, 255, 0.08);
+  }
+}
+
+.btn-primary,
+.send,
+.bubble.user {
+  color: var(--ink-on-accent);
+}
+
+/* Faint tide at the top of the page */
+body {
+  background:
+    radial-gradient(120% 60% at 50% -10%, var(--blue-faint), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
+}
+
+/* Editorial serif for the few big moments; the UI stays in the system face */
+.hero h1,
+.verdict h2,
+.section-title {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-optical-sizing: auto;
+  letter-spacing: -0.015em;
+}
+
+.hero h1 {
+  font-size: clamp(44px, 7vw, 84px);
+  line-height: 1;
+  max-width: 13ch;
+}
+
+.hero p {
+  font-size: clamp(18px, 2vw, 21px);
+}
+
+.section-title {
+  font-size: clamp(30px, 3.6vw, 42px);
+  line-height: 1.08;
+}
+
+.brand {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+}
+
+/* Verdict: calendar leaf + statement */
+.verdict {
+  padding: 56px 0 8px;
+}
+
+.verdict-layout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(28px, 5vw, 56px);
+  text-align: left;
+}
+
+.verdict-layout.plain {
+  text-align: center;
+}
+
+.verdict-text {
+  max-width: 560px;
+}
+
+.verdict-layout:not(.plain) .pills {
+  justify-content: flex-start;
+}
+
+.verdict-layout:not(.plain) .verdict .lede,
+.verdict-layout:not(.plain) .lede {
+  margin-left: 0;
+}
+
+.verdict h2 {
+  font-size: clamp(36px, 5.2vw, 60px);
+  line-height: 1.04;
+  margin: 0 0 14px;
+  letter-spacing: -0.02em;
+}
+
+.eyebrow {
+  color: var(--blue);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: 10px;
+}
+
+.cal-tile {
+  flex: none;
+  width: 176px;
+  border-radius: 30px;
+  background: var(--leaf);
+  box-shadow:
+    0 1px 0 var(--hair),
+    0 2px 6px rgba(0, 0, 0, 0.04),
+    0 22px 50px -18px rgba(11, 111, 134, 0.35);
+  overflow: hidden;
+  text-align: center;
+  transform: rotate(-3deg);
+  transition: transform 0.5s var(--ease);
+  animation: leaf 0.7s var(--ease);
+}
+
+.cal-tile:hover {
+  transform: rotate(0deg);
+}
+
+@keyframes leaf {
+  from {
+    opacity: 0;
+    transform: translateY(14px) rotate(-8deg);
+  }
+}
+
+.cal-month {
+  background: var(--blue);
+  color: var(--ink-on-accent);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 9px 0 8px;
+  letter-spacing: 0;
+}
+
+.cal-day {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 112px;
+  line-height: 1;
+  padding: 14px 0 0;
+  letter-spacing: -0.04em;
+  font-variant-numeric: lining-nums;
+}
+
+.cal-dow {
+  font-size: 15px;
+  color: var(--text-2);
+  padding: 2px 0 18px;
+}
+
+@media (max-width: 720px) {
+  .verdict-layout {
+    flex-direction: column;
+    text-align: center;
+    gap: 28px;
+  }
+  .verdict-layout:not(.plain) .pills {
+    justify-content: center;
+  }
+  .cal-tile {
+    width: 148px;
+  }
+  .cal-day {
+    font-size: 92px;
+  }
+}
+
+/* Command bar: finer hairline frame */
+.command {
+  box-shadow:
+    0 0 0 1px var(--hair),
+    0 18px 50px -20px rgba(16, 40, 43, 0.25);
+}
+
+/* Cards: hairline instead of floating shadow, lift on interaction */
+.card,
+.list,
+.disclosures,
+.date-card,
+.compare-box,
+.progress,
+.alert {
+  box-shadow:
+    0 0 0 1px var(--hair),
+    0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.date-card:hover {
+  box-shadow:
+    0 0 0 1px var(--hair),
+    0 14px 34px -14px rgba(16, 40, 43, 0.22);
+}
+
+.date-card[aria-pressed="true"] {
+  box-shadow:
+    0 0 0 1.5px var(--blue),
+    0 14px 34px -14px rgba(11, 111, 134, 0.35);
+}
+
+.date-card .day {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 30px;
+  letter-spacing: -0.015em;
+}
+
+.date-card .score {
+  font-weight: 500;
+  font-size: 36px;
+}
+
+.date-card .tag.best {
+  color: var(--blue);
+}
+
+.meter {
+  height: 4px;
+}
+
+/* Timeline: target column as a soft tide pool */
+.tl-col.target {
+  background: linear-gradient(to top, var(--blue-soft), var(--blue-faint) 70%, transparent);
+}
+
+/* Versus: the Qloo column gets the accent rule */
+.versus .card.qloo {
+  box-shadow:
+    inset 0 3px 0 var(--blue),
+    0 0 0 1px var(--hair);
+}
+
+.versus h3 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 24px;
+}
+
+.versus-note {
+  font-family: var(--serif);
+  font-size: clamp(20px, 2.2vw, 24px);
+  line-height: 1.38;
+  letter-spacing: -0.01em;
+}
+
+/* How-it-works cards: serif titles */
+.how h3 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+}
+
+.switch input:checked + span {
+  background: var(--blue);
+}
+
+.nav {
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+}
+
+.verdict .run-summary {
+  margin: 16px 0 0;
+  text-align: inherit;
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.rank-list .v small {
+  display: block;
+  font-size: 12px;
+  color: var(--text-3);
+  text-align: right;
+}
+
+.rank-list .v {
+  text-align: right;
 }

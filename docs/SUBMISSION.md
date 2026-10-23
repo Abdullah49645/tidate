@@ -45,44 +45,48 @@ API response; Qloo `/search` and `/v2/insights` (`signal.interests.entities` +
 (property-style checks), pipeline failure modes, agent orchestration with a
 scripted model, and MCP over JSON-RPC.
 
-## Demo script (about 3 minutes)
+## Demo script (about 3 minutes, live data)
 
-**Beat 1: the question (30 s).** "I'm booking an indie-pop act in Chicago and can
-hold three Saturdays. Which night is least crowded *for her fans*?" Enter the
-artist, market and dates. Point out that Undertow only ranks dates you can hold.
+The example is a real live query, checked on 2026-10-24. Live data changes, so
+re-run it before recording and quote what the screen shows. It is framed as a
+hypothetical: Kirk Franklin already has a Nashville show in this window, which
+Undertow excludes from the competition.
 
-**Beat 2: the analysis (60 s).** Run it. The steps tick through in real time:
-calendar search, performer matching, Qloo affinity, scoring, evidence check. Show
-the recommendation and the undertow strips: ticks above the line are every nearby
-show; depth below the line is Qloo-weighted pull. The busiest night can be shallow;
-a quiet night can hide one deep competitor.
+**Beat 1: the question (30 s).** "Suppose Kirk Franklin's team can hold Friday
+Nov 27, Friday Dec 4 or Thursday Dec 10 in Nashville. Which night is least
+crowded for his audience?" Tap "Try Kirk Franklin in Nashville", then Analyze.
 
-**Beat 3: the decision (90 s).** Open the riskiest date: the top row is a same-genre
-act two days away with high affinity. Show "Does Qloo change the answer?": a plain
-count would pick a different night, and the note explains why. Untick a show to
-run a what-if. Close on evidence and limits: what is measured, what is not, which
-performers could not be matched, and whether that could change the answer.
+**Beat 2: the analysis (60 s).** The steps tick through: Ticketmaster calendar,
+performer matching, Qloo affinity, scoring, evidence check. The calendar leaf
+lands on **Friday, November 27**, the busiest of the three dates (231 nearby shows).
+Point at the timeline: lots of shows, but short bars, because few of them share
+his audience.
+
+**Beat 3: the decision (90 s).** Open "Does Qloo change the answer?". A headcount
+sends you to **Dec 10**, the quietest date (149 shows). Qloo ranks it last: **Jodeci,
+Dave Barnes and Little Big Town all play that same night**, each closer to the
+audience than 89–98% of acts nearby. Select Dec 10 and expand Jodeci to show the
+raw Qloo affinity, its rank, popularity and timing, multiplied out. Switch Jodeci
+off to show the what-if. Close on "Holds unless unmatched acts are unusually
+close" and the data-coverage details: what Undertow can't see, stated plainly.
 
 ## Narration (about 90 seconds)
-
-The middle paragraph describes the **fictional demo scenario**. If the recording
-shows demo data, keep the on-screen demo label visible. For a live recording,
-rewrite that paragraph from the actual live result rather than reusing it.
 
 > Promoters choose between the dates they can hold. The question isn't how many
 > shows are nearby; it's which of them are chasing the same fans. Undertow pulls
 > every music event within two weeks of each date from Ticketmaster, asks Qloo how
 > closely each competing act's audience aligns with yours, and ranks your dates.
 >
-> Here, the busiest Saturday turns out to be the safest: its shows are metal,
-> country and electronic, with low affinity to our artist. The quiet Saturday
-> hides one same-genre headliner on the same night. A calendar count would have
-> sent us straight into it.
+> Here a calendar count points to December 10, the quietest night. But Jodeci,
+> Dave Barnes and Little Big Town all play that same night, and Qloo places their
+> audiences among the closest to Kirk Franklin's. November 27 is busier, but its
+> shows mostly draw other crowds. That's the call a count would get wrong.
 >
-> Every number is traceable: the show, the venue, the Qloo affinity, the timing
-> weight. Performers Qloo can't match are flagged, and Undertow tells you whether
-> they could change the answer. You can ask the agent in plain language, or call
-> the same engine from any MCP client.
+> Every number is traceable: the show, Qloo's affinity, its rank among acts
+> nearby, the timing weight. Acts Qloo can't match are listed, and Undertow tells
+> you whether they could change the answer. Across six cities, Qloo's affinity
+> tracked shared genres better than popularity alone, and changed the
+> recommended date in about a quarter of real cases.
 
 ## Verified vs not yet verified
 
