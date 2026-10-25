@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { DEMO_DATES, DEMO_MARKET, DEMO_TARGET } from "@/lib/demo/provider";
 import { STEP_LABELS, hydrateResult, rebuildScoringInputs, type PipelineOutcome, type ProgressEvent, type StepId } from "@/lib/pipeline";
 import { buildVerdict, scoreDates } from "@/lib/scoring/engine";
@@ -19,7 +20,10 @@ import { ShowList } from "./ShowList";
 import { Timeline } from "./Timeline";
 import { Versus } from "./Versus";
 import { fmt2, fmtDay, fmtLong, fmtShort, humanizeDates } from "./format";
-import { Alert, Check, Exclaim, Mark } from "./icons";
+import { Alert, Check, Exclaim } from "./icons";
+import { Logo } from "./Logo";
+import { WatchButton } from "./WatchButton";
+import { loadLocalWatches } from "./watchlist";
 
 interface Status {
   liveAvailable: boolean;
@@ -66,6 +70,49 @@ const liveRequest = (): RequestValue => ({
   nights: "fri-sat",
 });
 
+/**
+ * A link like /?mode=live&artist=Clairo&market=chicago&dates=2026-12-05,2026-12-12
+ * (or &from=&to=&nights=) opens the app and runs that request. Watch pages use it.
+ */
+function requestFromUrl(liveAvailable: boolean): { mode: "live" | "demo"; req: RequestValue } | null {
+  const p = new URLSearchParams(window.location.search);
+  const artist = p.get("artist")?.trim();
+  if (!artist) return null;
+  const mode = p.get("mode") === "live" && liveAvailable ? "live" : "demo";
+  const base = mode === "demo" ? demoRequest() : liveRequest();
+  const iso = (x: string | null) => (x && /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : null);
+  const dates = (p.get("dates") ?? "").split(",").map(iso).filter((x): x is string => !!x).slice(0, 4);
+  const from = iso(p.get("from"));
+  const to = iso(p.get("to"));
+  const nights = p.get("nights");
+  const req: RequestValue = {
+    ...base,
+    artist,
+    artistEntityId: p.get("entity") ?? undefined,
+    marketId: p.get("market") ?? base.marketId,
+    radiusMiles: Number(p.get("radius")) || base.radiusMiles,
+    ...(from && to ? { kind: "discover" as const, from, to, nights: nights === "thu-sat" || nights === "all" ? nights : "fri-sat" } : { kind: "compare" as const, dates: dates.length ? dates : base.dates }),
+  };
+  return { mode, req };
+}
+
+function subscribeWatches(cb: () => void) {
+  window.addEventListener("tidate-watches", cb);
+  window.addEventListener("storage", cb);
+  return () => {
+    window.removeEventListener("tidate-watches", cb);
+    window.removeEventListener("storage", cb);
+  };
+}
+
+function useLocalWatchCount() {
+  return useSyncExternalStore(
+    subscribeWatches,
+    () => loadLocalWatches().length,
+    () => 0,
+  );
+}
+
 /** The best three nights by each method, so the slope chart stays readable in a night search. */
 function versusSet(dates: DateScore[]): DateScore[] {
   if (dates.length <= 4) return dates;
@@ -78,6 +125,9 @@ export function Workstation() {
   const [status, setStatus] = useState<Status | null>(null);
   const [mode, setMode] = useState<"live" | "demo">("demo");
   const [req, setReq] = useState<RequestValue>(demoRequest);
+  const modeState = mode;
+  const reqState = req;
+  const localWatches = useLocalWatchCount();
   const [progress, setProgress] = useState<Partial<Record<StepId, ProgressEvent>>>({});
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -95,12 +145,20 @@ export function Workstation() {
       .then((r) => r.json())
       .then((s: Status) => {
         setStatus(s);
-        if (s.liveAvailable) {
+        const fromLink = requestFromUrl(s.liveAvailable);
+        if (fromLink) {
+          window.history.replaceState(null, "", window.location.pathname);
+          setMode(fromLink.mode);
+          setReq(fromLink.req);
+          void run(fromLink);
+        } else if (s.liveAvailable) {
           setMode("live");
           setReq(liveRequest());
         }
       })
       .catch(() => setStatus({ liveAvailable: false, agent: false }));
+    // run is stable enough here: it is called once, with explicit arguments.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const switchMode = (m: "live" | "demo") => {
@@ -135,7 +193,9 @@ export function Workstation() {
     else setProblem({ tone: "error", title: "No ranking was produced.", detail: [o.message] });
   }
 
-  async function run() {
+  async function run(explicit?: { mode: "live" | "demo"; req: RequestValue }) {
+    const mode = explicit?.mode ?? modeState;
+    const req = explicit?.req ?? reqState;
     setRunning(true);
     setProgress({});
     setProblem(null);
@@ -260,11 +320,15 @@ export function Workstation() {
     <>
       <nav className="nav" aria-label="Main">
         <div className="nav-inner">
-          <p className="brand">
-            <Mark className="brand-mark" />
-            Undertow
-          </p>
+          <Link className="brand" href="/" aria-label="Tidate, home">
+            <Logo />
+          </Link>
           <span className="nav-spacer" />
+          {localWatches > 0 && (
+            <Link className="nav-link" href="/watch">
+              Watching
+            </Link>
+          )}
           <button type="button" className="nav-link" onClick={() => setAskOpen(true)}>
             Ask
           </button>
@@ -297,7 +361,7 @@ export function Workstation() {
             <h1>
               <span className="line">Pick the night</span> <span className="line">your fans are free.</span>
             </h1>
-            <p>Undertow checks every show near your dates and weighs each by how much its audience overlaps with yours.</p>
+            <p>Tidate checks every show near your dates and weighs each by how much its audience overlaps with yours.</p>
           </section>
           <div className="stage-bar">
             <CommandBar mode={mode} value={req} onChange={setReq} onRun={run} running={running} clarify={clarify} onAsk={() => setAskOpen(true)} />
@@ -465,6 +529,7 @@ export function Workstation() {
                         </dd>
                       </div>
                     </dl>
+                    {!noEvidence && <WatchButton key={result.generatedAt} result={result} />}
                   </div>
                 </div>
               )}
@@ -589,7 +654,7 @@ export function Workstation() {
       <footer className="footer">
         <div className="footer-inner">
           <p>Event data from Ticketmaster. Taste and affinity data from Qloo.</p>
-          <p>Undertow estimates potential competition for an audience. It doesn&apos;t measure ticket sales or shared buyers.</p>
+          <p>Tidate estimates potential competition for an audience. It doesn&apos;t measure ticket sales or shared buyers.</p>
         </div>
       </footer>
 

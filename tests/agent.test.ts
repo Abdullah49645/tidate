@@ -11,6 +11,8 @@ import { createToolHandlers } from "@/lib/agent/tools";
 import { verifyAgentAnswer } from "@/lib/agent/verify";
 import { DEMO_DATES, DEMO_MARKET, DEMO_TARGET, createDemoProvider } from "@/lib/demo/provider";
 import type { DataProvider } from "@/lib/pipeline";
+import { memoryKv } from "@/lib/watch/kv";
+import { createWatchService } from "@/lib/watch/service";
 
 const usage = {
   inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
@@ -76,6 +78,25 @@ describe("agent tool loop", () => {
     expect(run.analysis?.discover).toEqual({ from: "2027-05-01", to: "2027-05-29", nights: "fri-sat" });
     expect(run.analysis?.dates).toHaveLength(9);
     expect(run.verification.mentionsRecommendation).toBe(run.analysis?.verdict.recommendedDate === "2027-05-01");
+  });
+
+  it("starts a watch for the latest analysis when asked", async () => {
+    const svc = createWatchService({ kv: memoryKv(), alert: async () => null, now: () => new Date("2026-10-26T10:00:00Z") });
+    const run = await runAgent({
+      provider: createDemoProvider(),
+      messages: [{ role: "user", content: "Score May 8, 15 and 22 2027 for Juniper Static in Chicago and keep an eye on them." }],
+      previous: null,
+      today: "2026-10-22",
+      startWatch: (r) =>
+        svc.create({ kind: "compare", mode: r.mode, request: { artist: r.request.artist, marketId: r.request.marketId, candidateDates: r.request.candidateDates } }),
+      model: scripted([toolCall("c1", "analyze_candidate_dates", args), toolCall("c2", "watch_latest", {}), text("Demo data: Sat, May 8 is best, and I'm watching the dates.")]),
+    });
+    expect(run.trace.map((t) => [t.tool, t.ok])).toEqual([
+      ["analyze_candidate_dates", true],
+      ["watch_latest", true],
+    ]);
+    expect(run.watchId).toMatch(/^[A-Za-z0-9_-]{22}$/);
+    expect((await svc.get(run.watchId!)).current.recommendedDate).toBe("2027-05-08");
   });
 
   it("appends the engine result when the model's answer contradicts it", async () => {

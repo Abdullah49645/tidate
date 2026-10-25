@@ -5,10 +5,10 @@ import type { DataProvider } from "../pipeline";
 import { SCORING_VERSION } from "../scoring/engine";
 
 /**
- * MCP server exposing Undertow's date-clash scoring to any MCP client.
+ * MCP server exposing Tidate's date-clash scoring to any MCP client.
  * Uses the same pipeline and deterministic engine as the web app and agent.
  */
-export function createUndertowMcpHandler(resolveProvider: (mode?: "live" | "demo") => { provider: DataProvider; note: string }) {
+export function createTidateMcpHandler(resolveProvider: (mode?: "live" | "demo") => { provider: DataProvider; note: string }) {
   const ModeArg = z.enum(["live", "demo"]).optional().describe("live = Ticketmaster + Qloo (default when configured); demo = fictional sample data");
 
   return createMcpHandler(
@@ -89,9 +89,9 @@ export function createUndertowMcpHandler(resolveProvider: (mode?: "live" | "demo
       );
     },
     {
-      serverInfo: { name: "undertow", version: SCORING_VERSION },
+      serverInfo: { name: "tidate", version: SCORING_VERSION },
       instructions:
-        "Undertow scores candidate concert dates by audience-competition risk. Qloo affinity is a proxy for potential audience overlap, not a count of shared ticket buyers; Ticketmaster does not list every event. Demo mode uses fictional data.",
+        "Tidate scores candidate concert dates by audience-competition risk. Qloo affinity is a proxy for potential audience overlap, not a count of shared ticket buyers; Ticketmaster does not list every event. Demo mode uses fictional data.",
     },
   );
 }

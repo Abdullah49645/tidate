@@ -51,7 +51,7 @@ export function Details({ result, whatWouldChange }: { result: AnalysisResult; w
         <div className="disclosure-body">
           <p className="formula">Clash score = Σ closeness × popularity × timing</p>
           <p>
-            Qloo gives every act an affinity with your artist. Most acts land in a narrow band, so Undertow ranks each one against the other acts playing
+            Qloo gives every act an affinity with your artist. Most acts land in a narrow band, so Tidate ranks each one against the other acts playing
             nearby: closeness is that rank raised to the power {AFFINITY_EXPONENT}, which makes an act in the top tenth count about ten times as much as a
             typical one. It&apos;s multiplied by the act&apos;s Qloo popularity and a timing weight: {TEMPORAL_BANDS.map((b) => `${b.label} ${b.weight}`).join(", ")}. When
             popularity is missing, {IMPUTED_POPULARITY.toFixed(2)} is used and the show is marked.

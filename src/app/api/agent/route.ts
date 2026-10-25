@@ -4,6 +4,7 @@ import { getConfig } from "@/lib/config";
 import { compactResult, hydrateResult } from "@/lib/pipeline";
 import { ConfigurationError, getProvider } from "@/lib/providers";
 import { SCORING_VERSION } from "@/lib/scoring/engine";
+import { createWatchService } from "@/lib/watch/service";
 import type { AnalysisResult } from "@/lib/types";
 
 export const maxDuration = 60;
@@ -49,6 +50,12 @@ export async function POST(req: Request) {
       messages: body.messages,
       previous: acceptPrevious(body.previous, body.mode),
       today: body.today ?? new Date().toISOString().slice(0, 10),
+      startWatch: async (r) => {
+        const request = r.discover
+          ? { artist: r.request.artist, artistEntityId: r.target.entity?.entityId, marketId: r.request.marketId, radiusMiles: r.request.radiusMiles, ...r.discover }
+          : { artist: r.request.artist, artistEntityId: r.target.entity?.entityId, marketId: r.request.marketId, radiusMiles: r.request.radiusMiles, candidateDates: r.request.candidateDates };
+        return createWatchService().create({ kind: r.discover ? "discover" : "compare", mode: r.mode, request });
+      },
     });
     const analysis = run.analysis?.discover ? compactResult(run.analysis) : run.analysis;
     return Response.json({ ...run, analysis }, { headers: { "cache-control": "no-store" } });

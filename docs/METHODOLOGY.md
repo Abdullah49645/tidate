@@ -1,8 +1,8 @@
 # Scoring methodology
 
-Undertow ranks candidate concert dates by estimated **audience-competition risk**:
+Tidate ranks candidate concert dates by estimated **audience-competition risk**:
 how strongly other music events near each date might draw on the same audience as
-your artist. Version: `undertow-score/1.2.0` (`src/lib/scoring/engine.ts`).
+your artist. Version: `tidate-score/1.2.0` (`src/lib/scoring/engine.ts`).
 
 ## Pipeline
 
@@ -119,7 +119,7 @@ how the UI makes Qloo's contribution visible; the evaluation tests it.
 
 - The verdict compares the best night with the runner-up, as for given dates.
 - A night that is quiet for every act (fewer than 40% of the median night's
-  time-weighted shows) wins under both methods. Undertow flags it ("check it isn't
+  time-weighted shows) wins under both methods. Tidate flags it ("check it isn't
   a holiday or a night the whole market avoids") rather than guessing why.
 - Skipping a night in the UI re-runs the engine on the remaining nights; the
   stored evidence is unchanged.
@@ -147,6 +147,29 @@ how the UI makes Qloo's contribution visible; the evaluation tests it.
   artist-specific. Venues are placed by the nearest cell within 1.5 km.
 - Neither feeds the score: the evaluation was run on the affinity-based score only,
   and neither signal has been tested against outcomes.
+
+## Watches
+
+A watch stores the request (with the artist pinned to the Qloo entity the first
+run resolved) and a compact snapshot: the ranking, the robustness tier, and each
+nearby listing with its largest scored contribution and closeness. Each check
+re-runs the pipeline and compares snapshots deterministically:
+
+- **New listing**: an event id not seen before that now adds to a date's score.
+  New listings with no pull (unmatched in Qloo, or far from the dates) are counted,
+  not itemised.
+- **Removed**: an event id that was listed before and is not now, reported as
+  cancelled, postponed or date-TBA when Ticketmaster says so, otherwise "no longer
+  listed". Shows dated before today are not reported (they happened).
+- **Moved**: the same event id with a different date.
+- **Best night**, **robustness tier** and, for up to four dates, **rank** changes.
+- **Coverage**: more acts matched than last time. Lookups have a time limit and a
+  shared cache, so later checks reach further; the line says so, because a score
+  can rise from better coverage alone. Coverage-only changes are not "notable".
+
+Notable changes get a summary from the configured model, written only from the
+change lines; it is discarded if it contains any number that isn't in them. The
+change lines are always shown.
 
 ## What the score is not
 

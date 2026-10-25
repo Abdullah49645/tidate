@@ -52,13 +52,13 @@ export function getConfig(): ServerConfig {
     openai: list(process.env.OPENAI_API_KEY),
     anthropic: list(process.env.ANTHROPIC_API_KEY),
   };
-  const preferred = clean(process.env.UNDERTOW_LLM_PROVIDER) as LlmProvider | null;
+  const preferred = clean(process.env.TIDATE_LLM_PROVIDER) as LlmProvider | null;
   const order: LlmProvider[] = preferred && keys[preferred]?.length ? [preferred] : (["google", "openai", "anthropic"] as LlmProvider[]);
   const provider = order.find((p) => keys[p].length > 0) ?? null;
 
   const llmRoutes: LlmRoute[] = [];
   if (provider) {
-    const models = list(process.env.UNDERTOW_LLM_MODEL).length ? list(process.env.UNDERTOW_LLM_MODEL) : DEFAULT_MODELS[provider];
+    const models = list(process.env.TIDATE_LLM_MODEL).length ? list(process.env.TIDATE_LLM_MODEL) : DEFAULT_MODELS[provider];
     // Model-major order: try the preferred model on every key before moving to the next model.
     for (const model of models) keys[provider].forEach((apiKey, keyIndex) => llmRoutes.push({ provider, model, apiKey, keyIndex }));
   }
@@ -68,7 +68,7 @@ export function getConfig(): ServerConfig {
     qlooBaseUrl: clean(process.env.QLOO_BASE_URL) ?? "https://hackathon.api.qloo.com",
     ticketmasterApiKey: clean(process.env.TICKETMASTER_API_KEY),
     llmRoutes,
-    forceDemo: process.env.UNDERTOW_FORCE_DEMO === "1",
+    forceDemo: process.env.TIDATE_FORCE_DEMO === "1",
   };
 }
 
@@ -78,6 +78,8 @@ export interface PublicStatus {
   ticketmaster: boolean;
   agent: boolean;
   llmProvider: string | null;
+  /** Where watches are stored: "upstash" persists, "memory" is lost on restart. */
+  watchStorage: "upstash" | "memory";
 }
 
 export function publicStatus(): PublicStatus {
@@ -89,5 +91,7 @@ export function publicStatus(): PublicStatus {
     ticketmaster: !!c.ticketmasterApiKey,
     agent: c.llmRoutes.length > 0,
     llmProvider: c.llmRoutes[0]?.provider ?? null,
+    watchStorage:
+      (process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL)?.trim() && (process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN)?.trim() ? "upstash" : "memory",
   };
 }

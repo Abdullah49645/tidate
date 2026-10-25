@@ -1,5 +1,5 @@
 /**
- * Undertow scoring engine.
+ * Tidate scoring engine.
  *
  * Pure, deterministic, dependency-free. Used by the web pipeline, the agent
  * tools, the MCP server, the evaluation scripts and the browser (for
@@ -28,7 +28,7 @@ import type {
   UncertaintyFlag,
 } from "../types";
 
-export const SCORING_VERSION = "undertow-score/1.2.0";
+export const SCORING_VERSION = "tidate-score/1.2.0";
 
 /**
  * Closeness emphasis applied to relative affinity: weight = rel ^ AFFINITY_EXPONENT.

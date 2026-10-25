@@ -49,6 +49,8 @@ export interface DataProvider {
   searchEvents(p: { market: Market; radiusMiles: number; startDate: string; endDate: string }): Promise<EventSearchResult>;
   searchArtists(name: string): Promise<ArtistCandidate[]>;
   affinities(targetEntityId: string, entityIds: string[]): Promise<Record<string, AffinitySignal>>;
+  /** Optional batch warm-up of artist searches (e.g. from a shared store) before lookups start. */
+  prefetchArtists?(names: string[]): Promise<void>;
   /** How often to stream a provisional ranking while lookups run (ms). Default 2500. */
   provisionalEveryMs?: number;
   /** Qloo tags per entity (context only; not used in scoring). */
@@ -260,6 +262,7 @@ async function analyse(
     }
   }
   const queue = [...names.values()].sort((a, b) => b.exposure - a.exposure || a.gap - b.gap || a.name.localeCompare(b.name));
+  await provider.prefetchArtists?.(queue.map((q) => q.name));
   onProgress({ step: "performers", status: "running", detail: `${names.size} distinct performers` });
   const budget = discover ? (provider.discoverBudgetMs ?? provider.resolveBudgetMs) : provider.resolveBudgetMs;
   const deadline = budget ? Date.now() + budget : Infinity;

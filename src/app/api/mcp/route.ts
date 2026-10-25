@@ -1,11 +1,11 @@
 import { publicStatus } from "@/lib/config";
 import { createDemoProvider } from "@/lib/demo/provider";
-import { createUndertowMcpHandler } from "@/lib/mcp/server";
+import { createTidateMcpHandler } from "@/lib/mcp/server";
 import { createLiveProvider } from "@/lib/providers";
 
 export const maxDuration = 60;
 
-const handler = createUndertowMcpHandler((mode) => {
+const handler = createTidateMcpHandler((mode) => {
   const live = publicStatus().liveAvailable;
   if (mode === "demo" || !live) {
     return {

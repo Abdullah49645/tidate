@@ -4,7 +4,7 @@ import "@fontsource-variable/newsreader/opsz.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Undertow",
+  title: "Tidate",
   description: "Pick the concert date your fans are free. Nearby shows weighted by real audience overlap.",
 };
 

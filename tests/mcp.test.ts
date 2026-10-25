@@ -4,9 +4,9 @@
  */
 import { describe, expect, it } from "vitest";
 import { createDemoProvider, DEMO_DATES, DEMO_MARKET, DEMO_TARGET } from "@/lib/demo/provider";
-import { createUndertowMcpHandler } from "@/lib/mcp/server";
+import { createTidateMcpHandler } from "@/lib/mcp/server";
 
-const handler = createUndertowMcpHandler(() => ({ provider: createDemoProvider(), note: "[DEMO DATA]" }));
+const handler = createTidateMcpHandler(() => ({ provider: createDemoProvider(), note: "[DEMO DATA]" }));
 const PROTOCOL = "2025-06-18";
 
 async function rpc(method: string, params: unknown, id = 1) {
@@ -29,14 +29,14 @@ async function rpc(method: string, params: unknown, id = 1) {
 }
 
 async function init() {
-  return rpc("initialize", { protocolVersion: PROTOCOL, capabilities: {}, clientInfo: { name: "undertow-test", version: "0" } }, 0);
+  return rpc("initialize", { protocolVersion: PROTOCOL, capabilities: {}, clientInfo: { name: "tidate-test", version: "0" } }, 0);
 }
 
 describe("MCP server", () => {
-  it("initializes and lists the Undertow tools", async () => {
+  it("initializes and lists the Tidate tools", async () => {
     const i = await init();
     expect(i.status).toBe(200);
-    expect(i.body.result.serverInfo.name).toBe("undertow");
+    expect(i.body.result.serverInfo.name).toBe("tidate");
     const list = await rpc("tools/list", {});
     const names = list.body.result.tools.map((t: { name: string }) => t.name).sort();
     expect(names).toEqual(["find_artist", "find_best_nights", "list_markets", "score_candidate_dates"]);

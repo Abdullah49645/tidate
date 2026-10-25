@@ -9,7 +9,7 @@ import type { AnalysisResult } from "../types";
 import { createToolHandlers, toolSchemas, type ToolContext } from "./tools";
 import { verifyAgentAnswer } from "./verify";
 
-function modelFor(r: LlmRoute): LanguageModel {
+export function modelFor(r: LlmRoute): LanguageModel {
   switch (r.provider) {
     case "google":
       return createGoogleGenerativeAI({ apiKey: r.apiKey })(r.model);
@@ -37,7 +37,7 @@ export function isRouteError(err: unknown): boolean {
 }
 
 function instructions(today: string, mode: "live" | "demo") {
-  return `You are Undertow, a scheduling analyst for concert promoters. Today is ${today}.
+  return `You are Tidate, a scheduling analyst for concert promoters. Today is ${today}.
 You help a promoter choose among candidate concert dates they can hold, by estimating how much each date competes with other music events in the same market for an overlapping audience.
 
 How you work:
@@ -45,6 +45,7 @@ How you work:
 - To analyse, you need: an artist, a market (use list_markets to map the city to a market id), and either 1-4 candidate dates (analyze_candidate_dates) or a range to search (find_best_nights, e.g. "a Friday or Saturday in March", "any night in the next six weeks"). Convert dates like "May 9" to YYYY-MM-DD; if no year is given, use the next occurrence after today.
 - If the artist, market or dates are missing, ask one short question instead of guessing. If analyze_candidate_dates or find_artist reports an ambiguous artist, show the candidates and ask which one, unless the user already made it clear.
 - After find_best_nights, lead with the best night and mention the next two as alternatives.
+- If the user asks to keep an eye on the dates, be told about changes, or similar, call watch_latest after the analysis and tell them the watch page is linked below your answer.
 - After analysing, call explain_date for the recommended date and, when it helps, compare_dates against the runner-up. Use what_if_exclude when the user asks about a show moving or being cancelled.
 - Answer in plain text for a chat bubble: no markdown, no headings, no asterisks, no tables. At most about 120 words in short paragraphs. Write dates like "Sat, Dec 19". Lead with the recommended date, then the two or three shows that drive the difference (performer, date, and how close their audience is to the artist's), whether a plain count of nearby shows would have chosen differently, and the one most important data gap. Don't repeat disclaimers the user didn't ask about beyond one short clause.
 - Be precise about meaning: Qloo affinity is a proxy for potential audience overlap, not a count of shared ticket buyers; Ticketmaster does not list every show; a lower clash score is not a promise of better ticket sales.
@@ -57,6 +58,8 @@ export interface AgentRun {
   analysis: AnalysisResult | null;
   verification: ReturnType<typeof verifyAgentAnswer>;
   steps: number;
+  /** Id of a watch started during this run. */
+  watchId: string | null;
   /** Which model answered and how many routes were tried (no keys). */
   route: { provider: string; model: string; keyIndex: number; attempts: number } | null;
 }
@@ -68,6 +71,7 @@ interface RunOpts {
   today: string;
   /** Injected model (tests). Defaults to the configured routes with fallback. */
   model?: LanguageModel;
+  startWatch?: ToolContext["startWatch"];
 }
 
 /**
@@ -94,7 +98,7 @@ export async function runAgent(opts: RunOpts): Promise<AgentRun> {
 }
 
 async function runOnce(opts: RunOpts, model: LanguageModel, route: LlmRoute | null, attempts: number): Promise<AgentRun> {
-  const ctx: ToolContext = { provider: opts.provider, latest: opts.previous, trace: [] };
+  const ctx: ToolContext = { provider: opts.provider, latest: opts.previous, trace: [], startWatch: opts.startWatch };
   const h = createToolHandlers(ctx);
 
   const agent = new ToolLoopAgent({
@@ -111,7 +115,7 @@ async function runOnce(opts: RunOpts, model: LanguageModel, route: LlmRoute | nu
       }),
       analyze_candidate_dates: tool({
         description:
-          "Run the full Undertow analysis: search Ticketmaster music events in the market, match performers to Qloo, fetch Qloo affinity toward the artist, and score each candidate date deterministically. Returns the ranking, top contributors, baseline comparison and diagnostics.",
+          "Run the full Tidate analysis: search Ticketmaster music events in the market, match performers to Qloo, fetch Qloo affinity toward the artist, and score each candidate date deterministically. Returns the ranking, top contributors, baseline comparison and diagnostics.",
         inputSchema: toolSchemas.analyze_candidate_dates,
         execute: h.analyze_candidate_dates,
       }),
@@ -131,6 +135,11 @@ async function runOnce(opts: RunOpts, model: LanguageModel, route: LlmRoute | nu
         inputSchema: toolSchemas.compare_dates,
         execute: h.compare_dates,
       }),
+      watch_latest: tool({
+        description: "Start watching the latest analysis: it is re-checked daily and new or cancelled shows and changes to the best night are recorded on a watch page.",
+        inputSchema: toolSchemas.watch_latest,
+        execute: h.watch_latest,
+      }),
       what_if_exclude: tool({
         description: "Re-score the latest analysis leaving out specific shows (e.g. one the user expects to move). Does not change the stored analysis.",
         inputSchema: toolSchemas.what_if_exclude,
@@ -145,6 +154,7 @@ async function runOnce(opts: RunOpts, model: LanguageModel, route: LlmRoute | nu
     text: verification.text,
     trace: ctx.trace,
     analysis: ctx.latest,
+    watchId: ctx.watchId ?? null,
     verification,
     steps: res.steps.length,
     route: route ? { provider: route.provider, model: route.model, keyIndex: route.keyIndex, attempts } : null,

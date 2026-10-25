@@ -69,10 +69,3 @@ export const Scale = ({ size = 20, className }: P) => (
 );
 
 /** Brand mark: a calendar dot pulled by a wave. */
-export const Mark = ({ size = 22, className }: P) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden className={className}>
-    <rect x="1" y="1" width="22" height="22" rx="6.5" fill="currentColor" />
-    <path d="M5 14.5c2-1.6 3.6-1.6 5.6 0s3.6 1.6 5.6 0 2.4-1.2 2.8-.9" stroke="#fff" strokeWidth="2" fill="none" strokeLinecap="round" />
-    <circle cx="12" cy="8.2" r="2" fill="#fff" />
-  </svg>
-);

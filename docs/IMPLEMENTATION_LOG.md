@@ -2,6 +2,33 @@
 
 Concise record so work can resume without context. Newest first.
 
+## 2026-10-26 (later)
+
+**State:** renamed to **Tidate** (tide + date); still local only.
+
+Done
+- Rename everywhere (package, UI, docs, MCP server name `tidate`, env vars
+  `TIDATE_*`, scoring id `tidate-score/1.2.0`; eval-results.json keeps the old id
+  it was recorded under, noted in EVALUATION.md). Repo dir is now `tidate`.
+- Animated logo: calendar leaf holding a tide and moon; water rises on load, two
+  swells drift, tide lifts on hover; still under reduced motion. `app/icon.svg`.
+- Watches: Upstash REST store (free tier) with in-memory fallback; snapshot + diff
+  engine; model-written summaries checked against the change lines; watch page,
+  local watch list, "Watch these dates" on results, agent tool `watch_latest`;
+  routes /api/watch, /api/watch/[id], /api/watch/[id]/check, /api/watch/cron;
+  vercel.json daily cron with CRON_SECRET. Shared Qloo search cache (30 days) in
+  the same store speeds up every live run.
+- Demo calendar has a second fictional state after the first check, so a demo
+  watch shows an alert (labelled on the page).
+- Tests: 85 passing.
+
+Live check: a Kirk Franklin / Nashville watch created in 25 s (cold); a check one
+minute later found no listing changes and 71 more matched acts.
+
+Next
+1. Deploy on Vercel with Upstash + CRON_SECRET; start a live watch right away so
+   real changes accumulate before recording.
+
 ## 2026-10-26
 
 **State:** app features added on top of the 2026-10-23 build; still local only.
@@ -13,7 +40,7 @@ Done
   best three, headcount's pick, skip-a-night re-ranking, quiet-night caution.
 - Provisional ranking streamed during performer lookups (affinities reused).
 - Lookup order by summed timing weight; Qloo pacing 5 concurrent / 110 ms; night
-  search budget 45 s (UNDERTOW_DISCOVER_BUDGET_MS).
+  search budget 45 s (TIDATE_DISCOVER_BUDGET_MS).
 - Ticketmaster windows over 1,000 results split recursively (New York 10 weeks: 2,495).
 - Shared taste via Qloo /entities tags (genre/lineage/influences only) and fan map
   via Qloo heatmap (POINT + radius); both display-only. /api/taste, /api/fanmap.

@@ -32,8 +32,8 @@ among acts playing nearby (see [METHODOLOGY.md](METHODOLOGY.md)).
 | --- | --- |
 | Volume | 420–432 music events, 3 pages of 200, not truncated. Over 10 weeks (Oct 27 – Jan 5): Nashville 516, Chicago 741, New York 2,495, so long windows in big markets exceed the 1,000-result paging cap and are split |
 | Status codes | `onsale` 424, `canceled` 5, `rescheduled` 2, `offsale` 1 |
-| Events without an attraction | 138 (titles like "Clairo – Charm Tour" or venue series). Undertow tries the title before a separator as the performer |
-| Multi-act bills | 111 events list several attractions; some list a whole bill as one attraction ("Ok Goodnight, Snooze, Eve"), which Undertow splits only when the full name doesn't match |
+| Events without an attraction | 138 (titles like "Clairo – Charm Tour" or venue series). Tidate tries the title before a separator as the performer |
+| Multi-act bills | 111 events list several attractions; some list a whole bill as one attraction ("Ok Goodnight, Snooze, Eve"), which Tidate splits only when the full name doesn't match |
 | Duplicates | Same show under two venue records; de-duplicated on (date, headliner) |
 | Genres | Rock, Other, Jazz, Country, Blues, Pop, Alternative, Dance/Electronic… |
 

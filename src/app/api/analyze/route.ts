@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { compactResult, runAnalysis, runDiscovery, type ProgressEvent } from "@/lib/pipeline";
-import { ConfigurationError, getProvider } from "@/lib/providers";
+import { ConfigurationError, getProviderWithMatches } from "@/lib/providers";
 
 export const maxDuration = 60;
 
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
 
   let provider;
   try {
-    provider = getProvider(body.mode);
+    provider = getProviderWithMatches(body.mode);
   } catch (err) {
     const message = err instanceof ConfigurationError ? err.message : "Server configuration error";
     return Response.json({ error: message, code: "not-configured" }, { status: 503 });
@@ -44,6 +44,7 @@ export async function POST(req: Request) {
       } catch (err) {
         send({ type: "fatal", message: err instanceof Error ? err.message : "Unexpected error" });
       } finally {
+        await provider.flushMatches();
         controller.close();
       }
     },

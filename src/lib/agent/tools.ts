@@ -14,6 +14,10 @@ export interface ToolContext {
   provider: DataProvider;
   latest: AnalysisResult | null;
   trace: Array<{ tool: string; input: unknown; ok: boolean; summary: string }>;
+  /** Starts a watch for the latest analysis (server only; absent where watching isn't offered). */
+  startWatch?: (r: AnalysisResult) => Promise<{ id: string }>;
+  /** Watch started during this run, so the UI can link to it. */
+  watchId?: string;
 }
 
 const r3 = (x: number | null) => (x === null ? null : Math.round(x * 1000) / 1000);
@@ -103,6 +107,7 @@ export const toolSchemas = {
   }),
   explain_date: z.object({ date: z.string().describe("A candidate date from the latest analysis, YYYY-MM-DD") }),
   compare_dates: z.object({ dateA: z.string(), dateB: z.string() }),
+  watch_latest: z.object({}),
   what_if_exclude: z.object({
     eventIds: z.array(z.string()).min(1).describe("eventIds from explain_date output to leave out, e.g. a show the user knows will move"),
   }),
@@ -210,6 +215,24 @@ export function createToolHandlers(ctx: ToolContext) {
         difference: r3(a.score - b.score),
         drivers: rows.map((x) => ({ eventId: x.eventId, performer: x.performer, eventDate: x.eventDate, toA: r3(x.a), toB: r3(x.b), delta: r3(x.delta) })),
       };
+    },
+
+    async watch_latest() {
+      const r = needAnalysis();
+      if (!ctx.startWatch) {
+        record("watch_latest", {}, false, "not available");
+        return { error: "Watching isn't available here." };
+      }
+      try {
+        const w = await ctx.startWatch(r);
+        ctx.watchId = w.id;
+        record("watch_latest", {}, true, `watch ${w.id}`);
+        return { watching: true, link: `/watch/${w.id}`, checks: "once a day, plus on demand from the watch page", reports: "new or cancelled shows near the dates, and changes to the best night" };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "failed";
+        record("watch_latest", {}, false, message);
+        return { error: `The watch couldn't be started: ${message}` };
+      }
     },
 
     async what_if_exclude({ eventIds }: In<"what_if_exclude">) {

@@ -1,5 +1,5 @@
 /**
- * Live validation of the Qloo and Ticketmaster operations Undertow depends on.
+ * Live validation of the Qloo and Ticketmaster operations Tidate depends on.
  *
  *   npm run validate:live
  *

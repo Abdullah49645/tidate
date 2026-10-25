@@ -3,12 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import { compactResult } from "@/lib/pipeline";
 import type { AnalysisResult } from "@/lib/types";
+import Link from "next/link";
 import { ArrowUp, Close } from "./icons";
+import { saveLocalWatch } from "./watchlist";
 
 interface Msg {
   role: "user" | "assistant" | "error";
   content: string;
   tools?: string[];
+  watchId?: string;
 }
 
 const TOOL_LABEL: Record<string, string> = {
@@ -19,6 +22,7 @@ const TOOL_LABEL: Record<string, string> = {
   explain_date: "Breakdown",
   compare_dates: "Comparison",
   what_if_exclude: "What-if",
+  watch_latest: "Watch",
 };
 
 export function AgentSheet({
@@ -83,7 +87,8 @@ export function AgentSheet({
         return;
       }
       const tools = [...new Set<string>((json.trace ?? []).map((t: { tool: string }) => TOOL_LABEL[t.tool] ?? t.tool))];
-      setMsgs([...next, { role: "assistant", content: json.text, tools }]);
+      setMsgs([...next, { role: "assistant", content: json.text, tools, watchId: json.watchId ?? undefined }]);
+      if (json.watchId) saveLocalWatch({ id: json.watchId, artist: json.analysis?.target?.entity?.name ?? "Watch", market: json.analysis?.market?.label ?? "", createdAt: new Date().toISOString() });
       if (json.analysis) onAnalysis(json.analysis);
     } catch {
       setMsgs([...next, { role: "error", content: "Couldn't reach the agent. Check your connection." }]);
@@ -95,10 +100,10 @@ export function AgentSheet({
   return (
     <>
       <div className="scrim" onClick={onClose} />
-      <aside className="sheet" role="dialog" aria-modal="true" aria-label="Ask Undertow">
+      <aside className="sheet" role="dialog" aria-modal="true" aria-label="Ask Tidate">
         <div className="sheet-head">
           <div>
-            <h2>Ask Undertow</h2>
+            <h2>Ask Tidate</h2>
             <p>Answers come from the same scoring tools as the page.</p>
           </div>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
@@ -124,6 +129,11 @@ export function AgentSheet({
             msgs.map((m, i) => (
               <div key={i} style={{ display: "contents" }}>
                 <div className={`bubble ${m.role}`}>{m.content}</div>
+                {m.watchId && (
+                  <Link className="bubble-link" href={`/watch/${m.watchId}`}>
+                    Open the watch
+                  </Link>
+                )}
                 {m.tools && m.tools.length > 0 && <div className="tools">Used {m.tools.join(", ")}</div>}
               </div>
             ))

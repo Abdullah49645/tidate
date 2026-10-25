@@ -45,7 +45,7 @@ We run three experiments the data can actually support.
 ## E2 — Does Qloo change the decision? (descriptive)
 
 - For each target, take the first three Saturdays in the window as candidate
-  dates and rank them with (a) the Undertow clash score and (b) the time-weighted
+  dates and rank them with (a) the Tidate clash score and (b) the time-weighted
   count baseline over the identical events.
 - **Report:** share of targets where the recommended date differs, and the
   share of rankings that differ at all.
@@ -64,7 +64,7 @@ We run three experiments the data can actually support.
 
 ## Results
 
-Collected 2026-10-23 (window 2026-11-13 to 2026-12-24), scoring `undertow-score/1.2.0`.
+Collected 2026-10-23 (window 2026-11-13 to 2026-12-24), scoring `tidate-score/1.2.0` (recorded in `eval-results.json` as `tidate-score/1.2.0`, the project's working name at the time; same engine).
 Aggregate output: [`eval-results.json`](eval-results.json). Raw data stays private in `.eval-data/`.
 
 ### Data coverage

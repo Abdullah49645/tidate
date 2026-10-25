@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <style>
+    .leaf{fill:#fffdf9}.acc{fill:#0b6f86}.edge{fill:none;stroke:#0b6f86;stroke-width:1.6}.ring{fill:#1d1d1f}
+    @media (prefers-color-scheme: dark){.leaf{fill:#1f2022}.acc{fill:#5ac8db}.edge{stroke:#5ac8db}.ring{fill:#f5f5f7}}
+  </style>
+  <defs><clipPath id="b"><path d="M3 10 H29 V23 a6 6 0 0 1 -6 6 H9 a6 6 0 0 1 -6 -6 Z"/></clipPath></defs>
+  <rect class="leaf" x="3" y="4" width="26" height="25" rx="6"/>
+  <g clip-path="url(#b)">
+    <circle class="acc" cx="21.5" cy="15.2" r="2.3" opacity=".85"/>
+    <path class="acc" opacity=".38" d="M -8 20.6 C -4 19.1, -4 19.1, 0 20.6 S 4 22.1, 8 20.6 C 12 19.1, 12 19.1, 16 20.6 S 20 22.1, 24 20.6 C 28 19.1, 28 19.1, 32 20.6 S 36 22.1, 40 20.6 V 34 H -8 Z"/>
+    <path class="acc" d="M -8 22.4 C -4 20.7, -4 20.7, 0 22.4 S 4 24.1, 8 22.4 C 12 20.7, 12 20.7, 16 22.4 S 20 24.1, 24 22.4 C 28 20.7, 28 20.7, 32 22.4 S 36 24.1, 40 22.4 V 34 H -8 Z"/>
+  </g>
+  <path class="acc" d="M3 10.5 V10 a6 6 0 0 1 6 -6 H23 a6 6 0 0 1 6 6 v0.5 Z"/>
+  <rect class="ring" x="9.6" y="1.6" width="2.4" height="5" rx="1.2"/>
+  <rect class="ring" x="20" y="1.6" width="2.4" height="5" rx="1.2"/>
+  <rect class="edge" x="3" y="4" width="26" height="25" rx="6"/>
+</svg>

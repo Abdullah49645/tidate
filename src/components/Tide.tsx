@@ -1,5 +1,5 @@
 /**
- * The signature "undertow": three layered swells drifting at different speeds
+ * The signature tide: three layered swells drifting at different speeds
  * behind the command bar. Each path repeats every 720px across a 2880px strip,
  * so translating it by -1440px loops seamlessly. Purely decorative.
  */

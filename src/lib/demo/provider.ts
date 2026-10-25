@@ -128,9 +128,22 @@ const ROWS: Row[] = [
   ["demo-e17", ["Halcyon Drift"], null, "union", "onsale", "Halcyon Drift – Date TBA"],
 ];
 
-function demoEvents(): CompetingEvent[] {
+/**
+ * Later state of the fictional calendar, used only to demonstrate watch alerts
+ * in demo mode: one show is announced and one is cancelled after the first check.
+ */
+const REVISION_1: { add: Row[]; cancel: string[] } = {
+  add: [["demo-e18", ["Halcyon Drift"], "2027-05-07", "foundry", "onsale", "Halcyon Drift – Late Show"]],
+  cancel: ["demo-e15"],
+};
+
+function demoEvents(revision = 0): CompetingEvent[] {
   const retrievedAt = "2026-10-22T00:00:00Z";
-  return ROWS.map(([id, performers, date, venueKey, status = "onsale", name]) => {
+  const rows: Row[] =
+    revision >= 1
+      ? [...ROWS.map((r): Row => (REVISION_1.cancel.includes(r[0]) ? [r[0], r[1], r[2], r[3], "canceled", r[5]] : r)), ...REVISION_1.add]
+      : ROWS;
+  return rows.map(([id, performers, date, venueKey, status = "onsale", name]) => {
     const v = V[venueKey];
     // The VIP listing duplicates e07 (same venue, date and primary performer).
     const perf = id === "demo-e08" ? ["Paper Lanterns", "Glass Orchard"] : performers;
@@ -153,11 +166,11 @@ function demoEvents(): CompetingEvent[] {
   });
 }
 
-export function createDemoProvider(): DataProvider {
+export function createDemoProvider(opts: { revision?: number } = {}): DataProvider {
   return {
     mode: "demo",
     async searchEvents({ startDate, endDate }) {
-      const events = demoEvents().filter((e) => !e.localDate || (e.localDate >= startDate && e.localDate <= endDate));
+      const events = demoEvents(opts.revision ?? 0).filter((e) => !e.localDate || (e.localDate >= startDate && e.localDate <= endDate));
       return { events, pagesFetched: 1, totalReported: events.length, truncated: false, malformed: 0 };
     },
     async searchArtists(name: string): Promise<ArtistCandidate[]> {

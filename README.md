@@ -1,19 +1,19 @@
-# Undertow
+# Tidate
 
 **Know which nights your crowd is already spoken for.**
 
-Undertow helps concert promoters, talent buyers and artist teams choose between the
+Tidate helps concert promoters, talent buyers and artist teams choose between the
 dates they can hold, or find the quietest nights in a range. For each candidate date it finds every music event within two
 weeks in the same market (Ticketmaster), asks Qloo how strongly each competing act's
 audience overlaps with your artist's, and ranks your dates by that pull, with every
 number traceable to a specific show, Qloo signal and timing weight.
 
-A plain calendar says *how many* shows are nearby. Undertow says *which ones matter
+A plain calendar says *how many* shows are nearby. Tidate says *which ones matter
 to your audience*: a night with three metal and country shows can be safer for an
 indie-pop act than a night with one same-genre headliner across town.
 
 Built for the [Qloo Agentic Hackathon 2026](https://qloo.devpost.com/).
-Repository: https://github.com/Abdullah49645/undertow
+Repository: https://github.com/Abdullah49645/tidate
 
 ---
 
@@ -61,6 +61,11 @@ Repository: https://github.com/Abdullah49645/undertow
 - **Fan map**: Qloo's heatmap of where your artist's audience is concentrated in the
   market, with the venues pulling most on the chosen night pinned and placed in it.
   The tags and the map are context only; neither changes a score.
+- **Watch**: one click turns a result into a watch. It is re-checked once a day (and
+  on demand) with the same engine, and a watch page records what changed: new or
+  cancelled shows near your dates, a show that moved, a new best night, a change in
+  robustness. Each notable change gets a two-sentence summary written by the model
+  from the change list and rejected if it mentions any number not in that list.
 
 ### Three ways in
 
@@ -68,8 +73,9 @@ Repository: https://github.com/Abdullah49645/undertow
 2. **Agent**: ask in plain language ("I can hold May 9, 16 or 23 for Clairo in
    Chicago…" or "find Clairo a Saturday in March"). An AI SDK `ToolLoopAgent` calls
    `find_artist`, `analyze_candidate_dates`, `find_best_nights`, `explain_date`,
-   `compare_dates` and `what_if_exclude`. It never produces numbers itself, and its final answer is
-   checked against the engine's recommendation.
+   `compare_dates`, `what_if_exclude` and `watch_latest` ("keep an eye on these").
+   It never produces numbers itself, and its final answer is checked against the
+   engine's recommendation.
 3. **MCP server** at `/api/mcp` (Streamable HTTP): tools `score_candidate_dates`,
    `find_best_nights`, `find_artist`, `list_markets` for any MCP client.
 
@@ -83,7 +89,10 @@ src/lib/ticketmaster/       Ticketmaster Discovery client
 src/lib/agent/              agent tools, ToolLoopAgent, answer verification
 src/lib/mcp/server.ts       MCP tool definitions
 src/lib/demo/provider.ts    fictional demo scenario
-src/app/api/*               analyze (NDJSON stream), agent, artists, mcp, status
+src/lib/watch/              watches: store (Upstash REST or memory), snapshots and diffs, alerts
+src/lib/context.ts          shared-taste tags and fan map (display only)
+src/app/api/*               analyze (NDJSON stream), agent, artists, mcp, status, taste,
+                            fanmap, watch (create / get / check / delete / cron)
 src/components/             workstation UI
 scripts/                    live API validation and evaluation
 tests/                      unit, pipeline, agent, MCP tests (no network)
@@ -95,8 +104,8 @@ docs/                       methodology, evaluation, prior art, submission notes
 Requirements: Node.js 20+ (developed on 22).
 
 ```bash
-git clone https://github.com/Abdullah49645/undertow.git
-cd undertow
+git clone https://github.com/Abdullah49645/tidate.git
+cd tidate
 npm install
 cp .env.example .env.local   # then fill in keys
 npm run dev                  # http://localhost:3000
@@ -109,8 +118,11 @@ npm run dev                  # http://localhost:3000
 | `QLOO_API_KEY` | live data | Qloo hackathon key request form; works only with `https://hackathon.api.qloo.com` |
 | `TICKETMASTER_API_KEY` | live data | developer.ticketmaster.com → My Apps → Consumer Key |
 | `GOOGLE_GENERATIVE_AI_API_KEYS` (comma-separated; or `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`) | conversational agent only | Google AI Studio. Keys and models rotate automatically on 429/503/403 |
-| `UNDERTOW_LOOKUP_BUDGET_MS` | optional | Time budget for Qloo performer lookups (default 30000) |
-| `UNDERTOW_FORCE_DEMO=1` | optional | forces demo data |
+| `TIDATE_LOOKUP_BUDGET_MS` | optional | Time budget for Qloo performer lookups (default 30000) |
+| `TIDATE_DISCOVER_BUDGET_MS` | optional | Lookup budget for a night search (default 45000) |
+| `TIDATE_FORCE_DEMO=1` | optional | forces demo data |
+| `KV_REST_API_URL`, `KV_REST_API_TOKEN` | watches that persist, shared match cache | Vercel → Storage / Marketplace → Upstash Redis (free tier). `UPSTASH_REDIS_REST_URL` / `_TOKEN` also work |
+| `CRON_SECRET` | daily watch checks | any random string of 16+ characters; Vercel sends it to the cron route |
 
 Without keys the app runs in **demo mode**: a fictional scenario that is labelled as
 fictional everywhere it appears. Live mode is never silently replaced by demo data.
@@ -138,8 +150,16 @@ npm run eval:run       # runs the pre-registered experiments
 2. In Vercel: **Add New → Project → Import** the repository (framework: Next.js,
    defaults are fine).
 3. Add the environment variables above under **Settings → Environment Variables**.
-4. Deploy. Check `https://<your-app>/api/status`: `liveAvailable: true` means
-   both data keys are present.
+4. For watches: in the project, open **Storage** (or the Marketplace), add
+   **Upstash Redis** on the free plan and connect it to the project; it sets
+   `KV_REST_API_URL` and `KV_REST_API_TOKEN`. Add `CRON_SECRET`.
+5. Deploy. Check `https://<your-app>/api/status`: `liveAvailable: true` means
+   both data keys are present, and `watchStorage: "upstash"` means watches persist.
+
+`vercel.json` schedules `/api/watch/cron` once a day (the Hobby plan allows daily
+crons and may run them any time within the scheduled hour). Each run checks the
+watches not checked in the last 20 hours, oldest first, within the function's time
+limit; any not reached are picked up the next day. A repeated delivery is harmless.
 
 API routes declare `maxDuration = 60`; a live analysis typically needs several
 seconds because every competing performer is matched in Qloo (results are cached
@@ -150,7 +170,7 @@ per server instance).
 Point any Streamable HTTP MCP client at `https://<your-app>/api/mcp`:
 
 ```json
-{ "undertow": { "url": "https://<your-app>/api/mcp" } }
+{ "tidate": { "url": "https://<your-app>/api/mcp" } }
 ```
 
 For stdio-only clients: `npx mcp-remote https://<your-app>/api/mcp`.
