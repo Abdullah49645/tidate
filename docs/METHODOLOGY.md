@@ -60,7 +60,7 @@ separator is tried ("Clairo – Charm Tour" → "Clairo"). When a whole bill is
 listed as one name and that name doesn't match, each comma- or slash-separated
 part is tried. Either way, a part must still match exactly.
 
-Lookups run closest-show-first under a time budget (25 s by default); any not
+Lookups run closest-show-first under a time budget (30 s by default); any not
 reached are marked "not looked up in time" and left unscored. Lookups are cached
 server-side, so a second run checks more.
 

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { dayDiff, diffDates, normaliseName } from "@/lib/scoring/engine";
 import type { ArtistResolution, CompetingEvent, Contribution, DateScore, MatchStatus } from "@/lib/types";
 import { fmt2, fmtDay, fmtRelative, fmtShort } from "./format";
-import { Chevron } from "./icons";
+import { Check, Chevron } from "./icons";
 
 const MATCH_TEXT: Partial<Record<MatchStatus, string>> = {
   ambiguous: "More than one Qloo artist has this name",
@@ -54,6 +54,9 @@ export function ShowList({
   onToggle: (eventId: string) => void;
 }) {
   const [open, setOpen] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const LIMIT = 8;
+  const visible = showAll ? date.contributions : date.contributions.slice(0, LIMIT);
   const [compareTo, setCompareTo] = useState("");
   const eventById = useMemo(() => new Map(events.map((e) => [e.eventId, e])), [events]);
   const others = dates.filter((d) => d.date !== date.date).sort((a, b) => a.date.localeCompare(b.date));
@@ -68,7 +71,7 @@ export function ShowList({
     <>
       <div className="list-head">
         <p>
-          {date.scoredEvents} of {date.inWindowEvents} shows scored. Switch one off to see the ranking without it.
+          {date.scoredEvents} of {date.inWindowEvents} shows scored. Untick one you expect to move and the ranking updates.
         </p>
         {others.length > 0 && (
           <select className="select-pill" value={compareTo} onChange={(e) => setCompareTo(e.target.value)} aria-label="Compare with another date">
@@ -95,7 +98,7 @@ export function ShowList({
               {diff.map((r) => (
                 <li key={r.eventId}>
                   <span>
-                    {r.performer ?? r.eventName} <span style={{ color: "var(--text-2)" }}>· {fmtShort(r.eventDate)}</span>
+                    {r.performer ?? r.eventName} <span style={{ color: "var(--text-2)" }}>{fmtShort(r.eventDate)}</span>
                   </span>
                   <span className="delta">
                     {fmt2(r.a ?? 0)} vs {fmt2(r.b ?? 0)}
@@ -117,7 +120,7 @@ export function ShowList({
         </div>
       ) : (
         <div className="list" role="list">
-          {date.contributions.map((c) => {
+          {visible.map((c) => {
             const e = eventById.get(c.eventId);
             const note = reason(c, e, resolutions);
             const share = c.scored && date.score > 0 ? (c.contribution ?? 0) / date.score : 0;
@@ -139,18 +142,17 @@ export function ShowList({
                     {c.scored ? (
                       <>
                         <b>{fmt2(c.contribution)}</b>
-                        <span className="bar" aria-hidden>
-                          <i style={{ width: `${Math.round(share * 100)}%` }} />
-                        </span>
                         <small>{Math.round(share * 100)}% of score</small>
                       </>
                     ) : (
                       <span className="muted">Not scored</span>
                     )}
                   </div>
-                  <label className="switch">
+                  <label className="incl" title="Included. Untick to leave this show out.">
                     <input type="checkbox" checked onChange={() => onToggle(c.eventId)} aria-label={`Include ${c.performer ?? c.eventName}`} />
-                    <span />
+                    <span>
+                      <Check size={11} />
+                    </span>
                   </label>
                 </div>
                 {isOpen && (
@@ -207,13 +209,23 @@ export function ShowList({
                 <div className="row-value">
                   <span className="muted">Excluded</span>
                 </div>
-                <label className="switch">
+                <label className="incl" title="Left out. Tick to include this show again.">
                   <input type="checkbox" checked={false} onChange={() => onToggle(e.eventId)} aria-label={`Include ${e.performers[0]?.name ?? e.name} again`} />
-                  <span />
+                  <span>
+                    <Check size={11} />
+                  </span>
                 </label>
               </div>
             </div>
           ))}
+          {date.contributions.length > LIMIT && (
+            <div className="row more">
+              <button type="button" className="btn-plain" onClick={() => setShowAll((v) => !v)} aria-expanded={showAll}>
+                {showAll ? "Show the strongest 8" : `Show all ${date.contributions.length} shows`}
+              </button>
+              <span>{showAll ? "" : `${date.contributions.length - LIMIT} more, smaller or unmatched`}</span>
+            </div>
+          )}
         </div>
       )}
     </>

@@ -46,45 +46,71 @@ function note(dates: DateScore[], artist: string) {
   );
 }
 
+const ROW = 64;
+
+/**
+ * Slope chart: the headcount ranking on the left, Qloo's on the right, one line
+ * per date. When Qloo reorders the dates the lines cross, so its effect is seen,
+ * not described. The line for Qloo's pick is drawn in the accent colour.
+ */
 export function Versus({ dates, artist }: { dates: DateScore[]; artist: string }) {
   const q = [...dates].sort((a, b) => a.rank - b.rank);
   const b = [...dates].sort((a, b) => a.baselineRank - b.baselineRank);
+  const n = dates.length;
+  const h = n * ROW;
+  const y = (rank: number) => (rank - 0.5) * ROW;
+  const pick = q[0]?.date;
+  const agrees = b[0]?.date === pick;
+
   return (
     <>
-      <div className="versus">
-        <div className="card qloo">
-          <h3>With Qloo</h3>
-          <p>Each show weighted by how much its audience overlaps with {artist}&apos;s.</p>
-          <ol className="rank-list">
-            {q.map((d, i) => (
-              <li key={d.date} className={i === 0 ? "first" : undefined}>
-                <span className="n">{i + 1}</span>
-                <span>{fmtDay(d.date)}</span>
-                <span className="v">{fmt2(d.score)}</span>
-              </li>
-            ))}
-          </ol>
-        </div>
-        <div className="card">
+      <div className="slope" style={{ ["--rows" as string]: n }}>
+        <div className="slope-head left">
           <h3>Headcount</h3>
-          <p>The same shows, closer dates counting more, every act counted alike.</p>
-          <ol className="rank-list">
-            {b.map((d, i) => (
-              <li key={d.date} className={i === 0 ? "first" : undefined}>
-                <span className="n">{i + 1}</span>
-                <span>{fmtDay(d.date)}</span>
-                <span className="v" title={`${d.inWindowEvents} shows within two weeks, weighted by how close each is to the date`}>
-                  {d.baselineWeighted.toFixed(1)} weighted
-                  <small>
-                    {d.inWindowEvents} {d.inWindowEvents === 1 ? "show" : "shows"}
-                  </small>
-                </span>
-              </li>
-            ))}
-          </ol>
+          <p>Every nearby show counted alike, closer dates counting more.</p>
         </div>
+        <div />
+        <div className="slope-head right">
+          <h3>With Qloo</h3>
+          <p>Each show weighted by how close its audience is to {artist}&apos;s.</p>
+        </div>
+
+        <ol className="slope-col left" aria-label="Ranked by headcount">
+          {b.map((d, i) => (
+            <li key={d.date} className={d.date === pick ? "pick" : undefined}>
+              <span className="n">{i + 1}</span>
+              <span className="d">{fmtDay(d.date)}</span>
+              <small>
+                {d.inWindowEvents} shows<span className="wide-only">, {d.baselineWeighted.toFixed(1)} weighted</span>
+              </small>
+            </li>
+          ))}
+        </ol>
+
+        <svg className="slope-lines" viewBox={`0 0 100 ${h}`} preserveAspectRatio="none" aria-hidden>
+          {dates.map((d) => {
+            const y1 = y(d.baselineRank);
+            const y2 = y(d.rank);
+            const isPick = d.date === pick;
+            return (
+              <g key={d.date} className={isPick ? "pick" : undefined}>
+                <path d={`M 0 ${y1} C 50 ${y1}, 50 ${y2}, 100 ${y2}`} vectorEffect="non-scaling-stroke" />
+              </g>
+            );
+          })}
+        </svg>
+
+        <ol className="slope-col right" aria-label="Ranked with Qloo">
+          {q.map((d, i) => (
+            <li key={d.date} className={d.date === pick ? "pick" : undefined}>
+              <span className="n">{i + 1}</span>
+              <span className="d">{fmtDay(d.date)}</span>
+              <small>clash score {fmt2(d.score)}</small>
+            </li>
+          ))}
+        </ol>
       </div>
-      <p className="versus-note">{note(dates, artist)}</p>
+      <p className={`versus-note${agrees ? " agrees" : ""}`}>{note(dates, artist)}</p>
     </>
   );
 }

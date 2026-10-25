@@ -387,16 +387,6 @@ export function Workstation() {
               {selectedDate && <Timeline key={selectedDate.date} d={selectedDate} scale={scale} />}
             </section>
 
-            {selectedDate && (
-              <section className="section" aria-labelledby="shows-title">
-                <h2 className="section-title" id="shows-title">
-                  What&apos;s pulling on {fmtDay(selectedDate.date)}.
-                </h2>
-                <p className="section-sub">Each show&apos;s share of the score, strongest first.</p>
-                <ShowList date={selectedDate} dates={view.dates} events={result.events} resolutions={result.resolutions} ignored={ignored} onToggle={toggle} />
-              </section>
-            )}
-
             {view.dates.length > 1 && (
               <section className="section" aria-labelledby="versus-title">
                 <h2 className="section-title" id="versus-title">
@@ -406,6 +396,17 @@ export function Workstation() {
                 <Versus dates={view.dates} artist={artist} />
               </section>
             )}
+
+            {selectedDate && (
+              <section className="section" aria-labelledby="shows-title">
+                <h2 className="section-title" id="shows-title">
+                  What&apos;s pulling on {fmtDay(selectedDate.date)}.
+                </h2>
+                <p className="section-sub">Each show&apos;s share of the score, strongest first.</p>
+                <ShowList key={selectedDate.date} date={selectedDate} dates={view.dates} events={result.events} resolutions={result.resolutions} ignored={ignored} onToggle={toggle} />
+              </section>
+            )}
+
 
             <section className="section" aria-labelledby="details-title">
               <h2 className="section-title" id="details-title">

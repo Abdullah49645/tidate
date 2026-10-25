@@ -96,7 +96,7 @@ npm run dev                  # http://localhost:3000
 | `QLOO_API_KEY` | live data | Qloo hackathon key request form; works only with `https://hackathon.api.qloo.com` |
 | `TICKETMASTER_API_KEY` | live data | developer.ticketmaster.com → My Apps → Consumer Key |
 | `GOOGLE_GENERATIVE_AI_API_KEYS` (comma-separated; or `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`) | conversational agent only | Google AI Studio. Keys and models rotate automatically on 429/503/403 |
-| `UNDERTOW_LOOKUP_BUDGET_MS` | optional | Time budget for Qloo performer lookups (default 25000) |
+| `UNDERTOW_LOOKUP_BUDGET_MS` | optional | Time budget for Qloo performer lookups (default 30000) |
 | `UNDERTOW_FORCE_DEMO=1` | optional | forces demo data |
 
 Without keys the app runs in **demo mode**: a fictional scenario that is labelled as

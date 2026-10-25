@@ -16,7 +16,7 @@ export function createLiveProvider(): DataProvider {
   const tmKey = c.ticketmasterApiKey;
   return {
     mode: "live",
-    resolveBudgetMs: Number(process.env.UNDERTOW_LOOKUP_BUDGET_MS ?? 25_000),
+    resolveBudgetMs: Number(process.env.UNDERTOW_LOOKUP_BUDGET_MS ?? 30_000),
     searchEvents: (p) => searchMusicEvents(tmKey, p),
     searchArtists: (name) => cachedSearchArtists(name.trim()),
     affinities: (target, ids) => qloo.affinities(target, ids),

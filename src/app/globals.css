@@ -2788,3 +2788,243 @@ body {
     background-size: 100% 1px;
   }
 }
+
+/* ---------- Qloo vs headcount: slope chart ---------- */
+.slope {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(90px, 0.9fr) minmax(0, 1fr);
+  column-gap: 20px;
+  border-top: 1px solid var(--sep);
+  border-bottom: 1px solid var(--sep);
+  padding: 22px 0 18px;
+}
+
+.slope-head h3 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 24px;
+  letter-spacing: -0.01em;
+  margin: 0 0 4px;
+}
+
+.slope-head p {
+  margin: 0 0 18px;
+  font-size: 14px;
+  color: var(--text-2);
+  max-width: 34ch;
+}
+
+.slope-head.left {
+  text-align: right;
+}
+
+.slope-head.left p {
+  margin-left: auto;
+}
+
+.slope-head.right h3 {
+  color: var(--blue);
+}
+
+.slope-col {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.slope-col li {
+  height: 64px;
+  display: grid;
+  align-content: center;
+  grid-template-columns: auto 1fr;
+  column-gap: 10px;
+  animation: rise-in 0.6s var(--spring) both;
+}
+
+.slope-col li:nth-child(2) {
+  animation-delay: 0.08s;
+}
+
+.slope-col li:nth-child(3) {
+  animation-delay: 0.16s;
+}
+
+.slope-col li:nth-child(4) {
+  animation-delay: 0.24s;
+}
+
+.slope-col .n {
+  grid-row: span 2;
+  font-family: var(--serif);
+  font-size: 26px;
+  line-height: 1;
+  color: var(--text-3);
+  font-variant-numeric: lining-nums;
+}
+
+.slope-col .d {
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.slope-col small {
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.slope-col.left li {
+  grid-template-columns: 1fr auto;
+  text-align: right;
+}
+
+.slope-col.left .n {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.slope-col.left .d,
+.slope-col.left small {
+  grid-column: 1;
+}
+
+.slope-col li.pick .d {
+  color: var(--blue);
+}
+
+.slope-col li.pick .n {
+  color: var(--blue);
+}
+
+.slope-lines {
+  width: 100%;
+  height: calc(var(--rows) * 64px);
+  overflow: visible;
+}
+
+.slope-lines {
+  animation: reveal 1.2s var(--spring) 0.3s both;
+}
+
+.slope-lines path {
+  fill: none;
+  stroke: var(--sep-strong);
+  stroke-width: 1.5;
+}
+
+.slope-lines .pick path {
+  stroke: var(--blue);
+  stroke-width: 2.5;
+}
+
+@keyframes reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.versus-note {
+  margin-top: 22px;
+}
+
+@media (max-width: 640px) {
+  .slope {
+    grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr);
+    column-gap: 10px;
+  }
+  .slope-head h3 {
+    font-size: 19px;
+  }
+  .slope-head p {
+    display: none;
+  }
+  .slope-col .d {
+    font-size: 15px;
+  }
+  .slope-col .n {
+    font-size: 20px;
+  }
+}
+
+
+
+/* ---------- Show list: quiet include check, capped list ---------- */
+.incl {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  cursor: pointer;
+}
+
+.incl input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.incl span {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  box-shadow: inset 0 0 0 1.5px var(--sep-strong);
+  color: transparent;
+  transition:
+    background 0.2s var(--ease),
+    box-shadow 0.2s var(--ease),
+    color 0.2s var(--ease),
+    transform 0.2s var(--spring);
+}
+
+.incl input:checked + span {
+  background: var(--blue-soft);
+  box-shadow: inset 0 0 0 1.5px transparent;
+  color: var(--blue);
+}
+
+.incl:hover span {
+  transform: scale(1.08);
+}
+
+.incl input:focus-visible + span {
+  outline: 3px solid var(--blue-soft);
+  outline-offset: 2px;
+}
+
+.row-main {
+  grid-template-columns: minmax(0, 1fr) auto 26px;
+}
+
+.row-value b {
+  font-weight: 500;
+}
+
+.row-value small {
+  margin-top: 1px;
+}
+
+.row.more {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 15px 20px 16px 0;
+  font-size: 15px;
+}
+
+.row.more span {
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  .wide-only {
+    display: none;
+  }
+}
