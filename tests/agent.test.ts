@@ -57,6 +57,27 @@ describe("agent tool loop", () => {
     expect(run.verification).toMatchObject({ checked: true, mentionsRecommendation: true, corrected: false });
   });
 
+  it("searches a range of nights and can explain any of them", async () => {
+    const run = await runAgent({
+      provider: createDemoProvider(),
+      messages: [{ role: "user", content: "Find Juniper Static a Friday or Saturday in May 2027 in Chicago." }],
+      previous: null,
+      today: "2026-10-22",
+      model: scripted([
+        toolCall("c1", "find_best_nights", { artist: DEMO_TARGET, marketId: DEMO_MARKET, from: "2027-05-01", to: "2027-05-29" }),
+        toolCall("c2", "explain_date", { date: "2027-05-22" }),
+        text("Demo data: Sat, May 1 is the quietest night."),
+      ]),
+    });
+    expect(run.trace.map((t) => [t.tool, t.ok])).toEqual([
+      ["find_best_nights", true],
+      ["explain_date", true],
+    ]);
+    expect(run.analysis?.discover).toEqual({ from: "2027-05-01", to: "2027-05-29", nights: "fri-sat" });
+    expect(run.analysis?.dates).toHaveLength(9);
+    expect(run.verification.mentionsRecommendation).toBe(run.analysis?.verdict.recommendedDate === "2027-05-01");
+  });
+
   it("appends the engine result when the model's answer contradicts it", async () => {
     const run = await runAgent({
       provider: createDemoProvider(),

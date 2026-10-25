@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DEMO_DATES, DEMO_MARKET, DEMO_TARGET } from "@/lib/demo/provider";
-import { STEP_LABELS, rebuildScoringInputs, type PipelineOutcome, type ProgressEvent, type StepId } from "@/lib/pipeline";
+import { STEP_LABELS, hydrateResult, rebuildScoringInputs, type PipelineOutcome, type ProgressEvent, type StepId } from "@/lib/pipeline";
 import { buildVerdict, scoreDates } from "@/lib/scoring/engine";
-import type { AnalysisResult, ArtistCandidate, DateScore, RankingVerdict } from "@/lib/types";
+import { NIGHTS, type AnalysisResult, type ArtistCandidate, type DateScore, type RankingVerdict, type SharedTaste } from "@/lib/types";
 import { AgentSheet } from "./AgentSheet";
 import { CalendarTile } from "./CalendarTile";
 import { CountUp } from "./CountUp";
@@ -12,10 +12,13 @@ import { Tide } from "./Tide";
 import { CommandBar, type RequestValue } from "./CommandBar";
 import { DateCards } from "./DateCards";
 import { Details } from "./Details";
+import { FanMap } from "./FanMap";
+import { NightCalendar } from "./NightCalendar";
+import { Provisional } from "./Provisional";
 import { ShowList } from "./ShowList";
 import { Timeline } from "./Timeline";
 import { Versus } from "./Versus";
-import { fmt2, fmtDay, fmtLong, fmtShort } from "./format";
+import { fmt2, fmtDay, fmtLong, fmtShort, humanizeDates } from "./format";
 import { Alert, Check, Exclaim, Mark } from "./icons";
 
 interface Status {
@@ -36,8 +39,40 @@ function upcomingSaturdays(): string[] {
   });
 }
 
-const demoRequest = (): RequestValue => ({ artist: DEMO_TARGET, marketId: DEMO_MARKET, dates: [...DEMO_DATES], radiusMiles: 30 });
-const liveRequest = (): RequestValue => ({ artist: "", marketId: "chicago", dates: upcomingSaturdays(), radiusMiles: 30 });
+function isoIn(days: number): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+const demoRequest = (): RequestValue => ({
+  artist: DEMO_TARGET,
+  marketId: DEMO_MARKET,
+  dates: [...DEMO_DATES],
+  radiusMiles: 30,
+  kind: "compare",
+  from: "2027-05-01",
+  to: "2027-05-29",
+  nights: "fri-sat",
+});
+const liveRequest = (): RequestValue => ({
+  artist: "",
+  marketId: "chicago",
+  dates: upcomingSaturdays(),
+  radiusMiles: 30,
+  kind: "compare",
+  from: isoIn(21),
+  to: isoIn(76),
+  nights: "fri-sat",
+});
+
+/** The best three nights by each method, so the slope chart stays readable in a night search. */
+function versusSet(dates: DateScore[]): DateScore[] {
+  if (dates.length <= 4) return dates;
+  const q = [...dates].sort((a, b) => a.rank - b.rank).slice(0, 3);
+  const b = [...dates].sort((a, b) => a.baselineRank - b.baselineRank).slice(0, 3);
+  return [...new Map([...q, ...b].map((d) => [d.date, d])).values()];
+}
 
 export function Workstation() {
   const [status, setStatus] = useState<Status | null>(null);
@@ -50,7 +85,10 @@ export function Workstation() {
   const [clarify, setClarify] = useState<ArtistCandidate[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [ignored, setIgnored] = useState<Set<string>>(new Set());
+  /** Nights left out of a night search (a holiday, a night the venue is dark). */
+  const [skipped, setSkipped] = useState<Set<string>>(new Set());
   const [askOpen, setAskOpen] = useState(false);
+  const [taste, setTaste] = useState<{ key: string; rows: Record<string, SharedTaste> }>({ key: "", rows: {} });
 
   useEffect(() => {
     fetch("/api/status")
@@ -74,12 +112,15 @@ export function Workstation() {
     setClarify(null);
     setProgress({});
     setIgnored(new Set());
+    setSkipped(new Set());
   };
 
-  const loadResult = useCallback((r: AnalysisResult) => {
+  const loadResult = useCallback((raw: AnalysisResult) => {
+    const r = hydrateResult(raw);
     setResult(r);
     setSelected(r.verdict.recommendedDate ?? r.dates[0]?.date ?? null);
     setIgnored(new Set());
+    setSkipped(new Set());
     setProblem(null);
     setClarify(null);
     requestAnimationFrame(() => document.getElementById("verdict")?.scrollIntoView({ behavior: "smooth", block: "start" }));
@@ -104,10 +145,18 @@ export function Workstation() {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          mode,
-          request: { artist: req.artist.trim(), artistEntityId: req.artistEntityId, marketId: req.marketId, candidateDates: req.dates, radiusMiles: req.radiusMiles },
-        }),
+        body: JSON.stringify(
+          req.kind === "discover"
+            ? {
+                mode,
+                kind: "discover",
+                request: { artist: req.artist.trim(), artistEntityId: req.artistEntityId, marketId: req.marketId, from: req.from, to: req.to, nights: req.nights, radiusMiles: req.radiusMiles },
+              }
+            : {
+                mode,
+                request: { artist: req.artist.trim(), artistEntityId: req.artistEntityId, marketId: req.marketId, candidateDates: req.dates, radiusMiles: req.radiusMiles },
+              },
+        ),
       });
       if (!res.ok || !res.body) {
         const j = await res.json().catch(() => ({}));
@@ -142,11 +191,48 @@ export function Workstation() {
   // What-if: recompute in the browser with the same engine.
   const view = useMemo((): { dates: DateScore[]; verdict: RankingVerdict } | null => {
     if (!result) return null;
-    if (ignored.size === 0) return { dates: result.dates, verdict: result.verdict };
+    if (ignored.size === 0 && skipped.size === 0) return { dates: result.dates, verdict: result.verdict };
     const { links, signals, typicalUnit } = rebuildScoringInputs(result);
-    const dates = scoreDates({ candidateDates: result.request.candidateDates, events: result.events, links, signals, typicalUnit, ignoredEventIds: [...ignored] });
+    const candidateDates = result.request.candidateDates.filter((d) => !skipped.has(d));
+    const dates = scoreDates({ candidateDates, events: result.events, links, signals, typicalUnit, ignoredEventIds: [...ignored] });
     return { dates, verdict: buildVerdict(dates) };
-  }, [result, ignored]);
+  }, [result, ignored, skipped]);
+
+  const toggleNight = (date: string) => {
+    if (!result) return;
+    const next = new Set(skipped);
+    if (next.has(date)) next.delete(date);
+    else if (result.request.candidateDates.length - next.size > 2) next.add(date);
+    else return;
+    setSkipped(next);
+    if (next.has(date) && selected === date) setSelected(null);
+  };
+
+  // Shared Qloo tags between the target and each visible act (context only, fetched on demand).
+  const targetId = result?.target.entity?.entityId ?? null;
+  const tasteKey = targetId ? `${result!.mode}|${targetId}` : "";
+  const tasteRows = taste.key === tasteKey ? taste.rows : {};
+  const requested = useRef<{ key: string; ids: Set<string> }>({ key: "", ids: new Set() });
+  const needTaste = useCallback(
+    (ids: string[]) => {
+      if (!tasteKey) return;
+      if (requested.current.key !== tasteKey) requested.current = { key: tasteKey, ids: new Set() };
+      const missing = ids.filter((id) => !requested.current.ids.has(id)).slice(0, 40);
+      if (!missing.length) return;
+      for (const id of missing) requested.current.ids.add(id);
+      const [m, target] = tasteKey.split("|");
+      fetch(`/api/taste?mode=${m}&target=${encodeURIComponent(target)}&ids=${missing.map(encodeURIComponent).join(",")}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j: { results: SharedTaste[] } | null) => {
+          if (!j) return;
+          setTaste((now) => ({ key: tasteKey, rows: { ...(now.key === tasteKey ? now.rows : {}), ...Object.fromEntries(j.results.map((x) => [x.entityId, x])) } }));
+        })
+        .catch(() => {
+          /* tags are optional context */
+        });
+    },
+    [tasteKey],
+  );
 
   const toggle = (id: string) =>
     setIgnored((s) => {
@@ -165,6 +251,9 @@ export function Workstation() {
   const resolutions = result ? Object.values(result.resolutions) : [];
   const matchedCount = resolutions.filter((r) => r.status === "exact" || r.status === "confirmed").length;
   const anyShows = view?.dates.some((d) => d.inWindowEvents > 0) ?? false;
+  const discover = result?.discover ?? null;
+  const shortlist = discover && view ? ordered.slice(0, 3) : [];
+  const provisional = progress.performers?.provisional;
   const noEvidence = !!view && anyShows && view.dates.every((d) => d.scoredEvents === 0);
 
   return (
@@ -237,6 +326,7 @@ export function Workstation() {
                 );
               })}
             </ol>
+            {provisional && progress.performers?.status === "running" && <Provisional p={provisional} limit={req.kind === "discover" ? 3 : 4} />}
           </div>
         )}
 
@@ -289,7 +379,9 @@ export function Workstation() {
                         ? "Not enough data to rank these dates"
                         : !anyShows
                           ? `No competing shows found for ${artist}`
-                          : view.dates.length > 1
+                          : discover
+                            ? `Best of ${view.dates.length} ${NIGHTS[discover.nights].plural} in ${result.market.label}`
+                            : view.dates.length > 1
                             ? `Best of ${view.dates.length} dates in ${result.market.label}`
                             : `Clash check in ${result.market.label}`}
                     </p>
@@ -355,6 +447,17 @@ export function Workstation() {
                           </dd>
                         </div>
                       )}
+                      {result.diagnostics
+                        .filter((d) => d.code === "quiet-market-night")
+                        .map((d) => (
+                          <div key={d.code}>
+                            <dt>Check</dt>
+                            <dd>
+                              <i className="dot warn" aria-hidden />
+                              {humanizeDates(d.message)}
+                            </dd>
+                          </div>
+                        ))}
                       <div>
                         <dt>Coverage</dt>
                         <dd>
@@ -365,35 +468,69 @@ export function Workstation() {
                   </div>
                 </div>
               )}
-              {ignored.size > 0 && (
+              {(ignored.size > 0 || skipped.size > 0) && (
                 <div className="whatif-bar" role="status">
                   <span>
-                    {ignored.size} {ignored.size === 1 ? "show" : "shows"} switched off.{" "}
+                    {[ignored.size ? `${ignored.size} ${ignored.size === 1 ? "show" : "shows"} switched off.` : null, skipped.size ? `${skipped.size} ${skipped.size === 1 ? "night" : "nights"} skipped.` : null]
+                      .filter(Boolean)
+                      .join(" ")}{" "}
                     {rec !== result.verdict.recommendedDate ? `Best night moves from ${fmtShort(result.verdict.recommendedDate!)} to ${fmtShort(rec!)}.` : "The best night doesn't change."}
                   </span>
-                  <button type="button" className="btn-plain" onClick={() => setIgnored(new Set())}>
+                  <button
+                    type="button"
+                    className="btn-plain"
+                    onClick={() => {
+                      setIgnored(new Set());
+                      setSkipped(new Set());
+                    }}
+                  >
                     Reset
                   </button>
                 </div>
               )}
             </section>
 
-            <section className="section" aria-labelledby="dates-title">
-              <h2 className="section-title" id="dates-title">
-                Your dates, side by side.
-              </h2>
-              <p className="section-sub">Lower is better. Choose a date to see what&apos;s around it.</p>
-              <DateCards dates={view.dates} best={rec} selected={selectedDate?.date ?? null} onSelect={setSelected} />
-              {selectedDate && <Timeline key={selectedDate.date} d={selectedDate} scale={scale} />}
-            </section>
+            {discover ? (
+              <section className="section" aria-labelledby="dates-title">
+                <h2 className="section-title" id="dates-title">
+                  Every night, at a glance.
+                </h2>
+                <p className="section-sub">
+                  {view.dates.length} {NIGHTS[discover.nights].plural} from {fmtShort(discover.from)} to {fmtShort(discover.to)}. Darker nights carry more pull on {artist}&apos;s
+                  audience.
+                </p>
+                <NightCalendar
+                  dates={view.dates}
+                  from={discover.from}
+                  to={discover.to}
+                  selected={selectedDate?.date ?? null}
+                  onSelect={setSelected}
+                  skipped={skipped}
+                  onToggleSkip={toggleNight}
+                  canSkip={view.dates.length > 2}
+                />
+                <h3 className="sub-title">The shortlist</h3>
+                <DateCards dates={shortlist} total={view.dates.length} best={rec} selected={selectedDate?.date ?? null} onSelect={setSelected} />
+                {selectedDate && <Timeline key={selectedDate.date} d={selectedDate} scale={scale} />}
+              </section>
+            ) : (
+              <section className="section" aria-labelledby="dates-title">
+                <h2 className="section-title" id="dates-title">
+                  Your dates, side by side.
+                </h2>
+                <p className="section-sub">Lower is better. Choose a date to see what&apos;s around it.</p>
+                <DateCards dates={view.dates} best={rec} selected={selectedDate?.date ?? null} onSelect={setSelected} />
+                {selectedDate && <Timeline key={selectedDate.date} d={selectedDate} scale={scale} />}
+              </section>
+            )}
 
             {view.dates.length > 1 && (
               <section className="section" aria-labelledby="versus-title">
                 <h2 className="section-title" id="versus-title">
                   Does Qloo change the answer?
                 </h2>
-                <p className="section-sub">The same shows, ranked two ways.</p>
-                <Versus dates={view.dates} artist={artist} />
+                <p className="section-sub">{discover ? "The best three nights by each method, with their ranks among all the nights searched." : "The same shows, ranked two ways."}</p>
+                <Versus dates={versusSet(view.dates)} artist={artist} />
               </section>
             )}
 
@@ -403,7 +540,37 @@ export function Workstation() {
                   What&apos;s pulling on {fmtDay(selectedDate.date)}.
                 </h2>
                 <p className="section-sub">Each show&apos;s share of the score, strongest first.</p>
-                <ShowList key={selectedDate.date} date={selectedDate} dates={view.dates} events={result.events} resolutions={result.resolutions} ignored={ignored} onToggle={toggle} />
+                <ShowList
+                  key={selectedDate.date}
+                  date={selectedDate}
+                  dates={view.dates}
+                  events={result.events}
+                  resolutions={result.resolutions}
+                  ignored={ignored}
+                  onToggle={toggle}
+                  artist={artist}
+                  taste={tasteRows}
+                  onNeedTaste={needTaste}
+                />
+              </section>
+            )}
+
+            {selectedDate && targetId && (
+              <section className="section" aria-labelledby="map-title">
+                <h2 className="section-title" id="map-title">
+                  Where {artist}&apos;s audience lives.
+                </h2>
+                <p className="section-sub">Qloo&apos;s heatmap of {result.market.label}, with the venues pulling most on {fmtDay(selectedDate.date)}. Context only; it doesn&apos;t change any score.</p>
+                <FanMap
+                  mode={result.mode}
+                  targetId={targetId}
+                  artist={artist}
+                  marketId={result.market.id}
+                  marketLabel={result.market.label}
+                  radiusMiles={result.request.radiusMiles}
+                  date={selectedDate}
+                  events={result.events}
+                />
               </section>
             )}
 

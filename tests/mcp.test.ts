@@ -39,7 +39,7 @@ describe("MCP server", () => {
     expect(i.body.result.serverInfo.name).toBe("undertow");
     const list = await rpc("tools/list", {});
     const names = list.body.result.tools.map((t: { name: string }) => t.name).sort();
-    expect(names).toEqual(["find_artist", "list_markets", "score_candidate_dates"]);
+    expect(names).toEqual(["find_artist", "find_best_nights", "list_markets", "score_candidate_dates"]);
     const score = list.body.result.tools.find((t: { name: string }) => t.name === "score_candidate_dates");
     expect(score.inputSchema.required).toEqual(expect.arrayContaining(["artist", "marketId", "candidateDates"]));
   });
@@ -64,6 +64,19 @@ describe("MCP server", () => {
     expect(isErr).toBe(true);
     const missing = await rpc("tools/call", { name: "score_candidate_dates", arguments: { artist: DEMO_TARGET } });
     expect(missing.body.error !== undefined || missing.body.result?.isError === true).toBe(true);
+  });
+
+  it("searches a range of nights", async () => {
+    await init();
+    const r = await rpc("tools/call", {
+      name: "find_best_nights",
+      arguments: { artist: DEMO_TARGET, marketId: DEMO_MARKET, from: "2027-05-01", to: "2027-05-29", mode: "demo" },
+    });
+    const sc = r.body.result.structuredContent;
+    expect(r.body.result.isError).toBeFalsy();
+    expect(sc.nightsScored).toBe(9);
+    expect(sc.bestNights).toHaveLength(3);
+    expect(sc.allNights.map((n: { rank: number }) => n.rank)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
   });
 
   it("reports ambiguity through find_artist", async () => {

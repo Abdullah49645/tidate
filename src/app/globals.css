@@ -1886,6 +1886,7 @@ a:hover {
 }
 
 .inline-select {
+  field-sizing: content;
   appearance: none;
   -webkit-appearance: none;
   border: 0;
@@ -3027,4 +3028,537 @@ body {
   .wide-only {
     display: none;
   }
+}
+
+/* ============================================================
+   Find a night: range field, provisional ranking, night calendar
+   ============================================================ */
+.cmd-switch {
+  display: flex;
+  gap: 12px;
+}
+
+.cmd-switch button {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--text-3);
+  transition: color 0.15s var(--ease);
+}
+
+.cmd-switch button:hover {
+  color: var(--text-2);
+}
+
+.cmd-switch button[aria-pressed="true"] {
+  color: var(--text-2);
+  cursor: default;
+}
+
+.cmd-switch button[aria-pressed="true"]::after {
+  content: "";
+  display: block;
+  height: 1.5px;
+  margin-top: 1px;
+  border-radius: 1px;
+  background: var(--blue);
+  animation: underline-in 0.3s var(--ease) both;
+  transform-origin: left;
+}
+
+@keyframes underline-in {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.chip.plain {
+  padding: 1px 11px;
+}
+
+.range-to {
+  font-size: 14px;
+  color: var(--text-3);
+  padding: 0 2px;
+}
+
+/* Provisional ranking inside the progress card */
+.provisional {
+  border-top: 1px solid var(--sep);
+  margin: 4px -20px 0;
+  padding: 12px 20px 14px;
+  animation: rise 0.3s var(--ease);
+}
+
+.provisional-head {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--text-2);
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.provisional-head span {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.provisional-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.provisional-row {
+  display: grid;
+  grid-template-columns: 16px 104px minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.provisional .n {
+  font-family: var(--serif);
+  color: var(--text-3);
+  font-variant-numeric: lining-nums;
+}
+
+.provisional-row:first-child .n,
+.provisional-row:first-child .d {
+  color: var(--blue);
+}
+
+.provisional .bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--fill);
+  overflow: hidden;
+}
+
+.provisional .bar span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--text-3);
+  transition: width 0.6s var(--ease);
+}
+
+.provisional-row:first-child .bar span {
+  background: var(--blue);
+}
+
+.provisional .v {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+
+.provisional-more {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* Night calendar */
+.nights {
+  background: var(--card);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow);
+  padding: 26px 26px 18px;
+}
+
+.nights-months {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(252px, 1fr));
+  gap: 26px 36px;
+}
+
+.month h3 {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+  margin: 0 0 10px;
+}
+
+.month h3 span {
+  color: var(--text-3);
+}
+
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.month-grid .dow {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-align: center;
+  padding-bottom: 2px;
+}
+
+.month-grid .day {
+  position: relative;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+  border: 0;
+  padding: 0;
+}
+
+.month-grid .day.out {
+  opacity: 0.35;
+}
+
+.month-grid .night {
+  color: var(--text);
+  font-weight: 500;
+  background: color-mix(in srgb, var(--blue) calc(var(--t) * 82% + 7%), var(--card));
+  transition: transform 0.18s var(--ease), box-shadow 0.18s var(--ease);
+  animation: rise-in 0.42s var(--spring) backwards;
+  animation-delay: calc(var(--i) * 9ms + 80ms);
+}
+
+.month-grid .night.deep {
+  color: var(--ink-on-accent);
+}
+
+.month-grid .night:hover {
+  transform: scale(1.08);
+  z-index: 1;
+}
+
+.month-grid .night.top {
+  box-shadow: inset 0 0 0 1.5px var(--green);
+}
+
+.month-grid .night[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--text);
+}
+
+.month-grid .night .rank,
+.nights-legend .rank {
+  position: absolute;
+  top: -5px;
+  right: -4px;
+  min-width: 15px;
+  height: 15px;
+  border-radius: 8px;
+  background: var(--green);
+  color: #fff;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.month-grid .night.headcount::after,
+.nights-legend .key-head i {
+  content: "";
+  position: absolute;
+  left: 30%;
+  right: 30%;
+  bottom: 4px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--orange);
+}
+
+.nights-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--sep);
+}
+
+.nights-focus {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-2);
+  min-height: 21px;
+}
+
+.nights-focus strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.nights-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.nights-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.nights-legend .ramp i {
+  width: 64px;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--blue) 7%, var(--card)), var(--blue));
+  box-shadow: inset 0 0 0 1px var(--hair);
+}
+
+.nights-legend .rank {
+  position: static;
+  display: inline-block;
+}
+
+.nights-legend .key-head i {
+  position: relative;
+  display: inline-block;
+  left: 0;
+  bottom: 0;
+  width: 14px;
+}
+
+.sub-title {
+  font-size: 19px;
+  font-weight: 600;
+  margin: 34px 0 14px;
+  letter-spacing: -0.015em;
+}
+
+@media (max-width: 560px) {
+  .nights {
+    padding: 20px 14px 14px;
+  }
+  .month-grid {
+    gap: 3px;
+  }
+}
+
+/* Shared taste in the show list */
+.row-taste {
+  font-size: 13px;
+  color: var(--text-2);
+  margin-top: 2px;
+}
+
+.taste-line {
+  margin: 12px 0 0;
+  font-size: 14px;
+  color: var(--text-2);
+  font-family: var(--serif);
+  font-size: 16px;
+  letter-spacing: -0.005em;
+}
+
+/* Fan map */
+.fanmap {
+  position: relative;
+  background: var(--card);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.fanmap svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.fanmap.loading {
+  height: 320px;
+  display: grid;
+  place-items: center;
+  color: var(--text-3);
+  font-size: 14px;
+}
+
+.fanmap.loading p {
+  margin: 0;
+  animation: fade 1.4s var(--ease) infinite alternate;
+}
+
+.fanmap .grain circle {
+  fill: var(--text-3);
+  opacity: 0.35;
+}
+
+.fanmap .heat {
+  animation: fade 1s var(--ease) backwards;
+}
+
+.fanmap .heat circle {
+  fill: var(--blue);
+}
+
+
+
+.fanmap .centre path {
+  stroke: var(--text-3);
+  stroke-width: 1.2;
+  fill: none;
+}
+
+.fanmap .pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--text);
+  color: var(--card);
+  box-shadow: 0 0 0 2px var(--card);
+  font-size: 11px;
+  font-weight: 700;
+  pointer-events: none;
+  animation: pin-drop 0.45s var(--spring) backwards;
+  animation-delay: calc(var(--i) * 70ms + 300ms);
+}
+
+@keyframes pin-drop {
+  from {
+    opacity: 0;
+    translate: 0 -10px;
+  }
+}
+
+.nights-legend .key-centre i {
+  font-style: normal;
+  color: var(--text-3);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.fanmap .scale path {
+  stroke: var(--text-2);
+  stroke-width: 1.2;
+  fill: none;
+}
+
+.scale-label {
+  position: absolute;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.scale-label {
+  color: var(--text-2);
+  font-weight: 500;
+}
+
+.fanmap-foot {
+  margin-top: 14px;
+}
+
+.fanmap-venues {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--sep);
+}
+
+.fanmap-venues li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--sep);
+  font-size: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px 20px;
+}
+
+.fanmap-venues li > span {
+  min-width: 0;
+}
+
+.fanmap-venues b {
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+.fanmap-venues li > span > span {
+  color: var(--text-2);
+}
+
+.fanmap-venues small {
+  font-size: 13px;
+  color: var(--text-2);
+  text-align: right;
+  flex: none;
+}
+
+.nights-legend .key-pin i,
+.pin-n {
+  display: inline-grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--text);
+  color: var(--card);
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  flex: none;
+}
+
+.pin-n {
+  margin-right: 10px;
+  vertical-align: 1px;
+}
+
+.fanmap-empty {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 15px;
+}
+
+@media (max-width: 560px) {
+  .fanmap-venues li {
+    flex-direction: column;
+  }
+  .fanmap-venues small {
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fanmap.loading p {
+    animation: none !important;
+  }
+}
+
+.month-grid .day.skipped {
+  color: var(--text-3);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--sep-strong);
+  text-decoration: line-through;
+  cursor: pointer;
+}
+
+.month-grid .day.skipped:hover {
+  color: var(--text);
+}
+
+.nights-focus .skip {
+  font-size: 14px;
+  margin-left: 4px;
 }

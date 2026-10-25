@@ -2,6 +2,32 @@
 
 Concise record so work can resume without context. Newest first.
 
+## 2026-10-26
+
+**State:** app features added on top of the 2026-10-23 build; still local only.
+
+Done
+- Find a night: range + nights of the week (fri-sat / thu-sat / all, 2–40 nights,
+  ≤70 days). `runDiscovery` in the pipeline, `kind: "discover"` on /api/analyze,
+  agent tool `find_best_nights`, MCP tool `find_best_nights`. Calendar heatmap with
+  best three, headcount's pick, skip-a-night re-ranking, quiet-night caution.
+- Provisional ranking streamed during performer lookups (affinities reused).
+- Lookup order by summed timing weight; Qloo pacing 5 concurrent / 110 ms; night
+  search budget 45 s (UNDERTOW_DISCOVER_BUDGET_MS).
+- Ticketmaster windows over 1,000 results split recursively (New York 10 weeks: 2,495).
+- Shared taste via Qloo /entities tags (genre/lineage/influences only) and fan map
+  via Qloo heatmap (POINT + radius); both display-only. /api/taste, /api/fanmap.
+- Compact transport for night searches (contributions rebuilt in the browser).
+- Tests: 74 passing (discovery, compaction round trip, provisional, taste, fan map,
+  TM split, agent + MCP night search).
+
+Live checks (Nashville, Kirk Franklin, Nov 13 – Dec 31, Fridays and Saturdays)
+- Cold run 48 s, about 310 of 473 performers looked up; provisional rankings
+  every ~3 s. Dec 25/26 come out quietest for every method and get the
+  quiet-night caution; skipping them makes Nov 13 the pick, where headcount picks Dec 19.
+
+On hold (user's call): watchlist / alerts agent.
+
 ## 2026-10-23
 
 **State:** live integrations verified; evaluation run; UI redesigned (Apple-style);

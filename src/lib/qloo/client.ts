@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TtlCache } from "../http/cache";
 import { Limiter, UpstreamError, fetchJson } from "../http/fetch";
-import type { AffinitySignal, ArtistCandidate } from "../types";
+import type { AffinitySignal, ArtistCandidate, HeatCell, TasteTag } from "../types";
 
 /**
  * Qloo hackathon API client.
@@ -20,10 +20,32 @@ const ARTIST = "urn:entity:artist";
 const MAX_TAKE = 50;
 
 // Hackathon key limits observed live: 10 requests/second, 50,000/month.
-// 130 ms minimum spacing between request starts keeps us at <= 8 per second.
-const limiter = new Limiter(3, 130);
+// 110 ms minimum spacing between request starts keeps us at about 9 per second;
+// a 429 is retried after the delay Qloo asks for.
+const limiter = new Limiter(5, 110);
 const searchCache = new TtlCache<ArtistCandidate[]>(24 * 3600 * 1000);
 const affinityCache = new TtlCache<AffinitySignal>(24 * 3600 * 1000, 20_000);
+const tagCache = new TtlCache<TasteTag[]>(7 * 24 * 3600 * 1000, 20_000);
+const heatCache = new TtlCache<HeatCell[]>(24 * 3600 * 1000, 500);
+
+const EntityTags = z.object({
+  entity_id: z.string(),
+  tags: z
+    .array(z.object({ tag_id: z.string().optional(), id: z.string().optional(), name: z.string(), type: z.string().optional() }).passthrough())
+    .optional()
+    .catch([]),
+});
+const EntitiesResponse = z.object({ results: z.array(z.unknown()) });
+const HeatmapResponse = z.object({
+  results: z.object({
+    heatmap: z.array(
+      z.object({
+        location: z.object({ latitude: z.number(), longitude: z.number(), geohash: z.string() }),
+        query: z.object({ affinity: z.number().nullable().optional() }).passthrough(),
+      }),
+    ),
+  }),
+});
 
 const num01 = z
   .union([z.number(), z.string()])
@@ -160,5 +182,59 @@ export class QlooClient {
       }),
     );
     return result;
+  }
+
+  /**
+   * Tags Qloo attaches to each entity (GET /entities?entity_ids=...).
+   * Used only to explain why two audiences overlap; never part of the score.
+   */
+  async entityTags(entityIds: string[]): Promise<Record<string, TasteTag[]>> {
+    const unique = [...new Set(entityIds.filter(Boolean))];
+    const out: Record<string, TasteTag[]> = {};
+    const missing = unique.filter((id) => {
+      const hit = tagCache.get(id);
+      if (hit) out[id] = hit;
+      return !hit;
+    });
+    const chunks: string[][] = [];
+    for (let i = 0; i < missing.length; i += 25) chunks.push(missing.slice(i, i + 25));
+    await Promise.all(
+      chunks.map(async (chunk) => {
+        const qs = new URLSearchParams({ entity_ids: chunk.join(",") });
+        const json = await fetchJson({ service: "qloo", url: `${this.baseUrl}/entities?${qs}`, headers: this.headers, limiter, retries: 3, label: "Qloo entities (tags)" });
+        const parsed = EntitiesResponse.safeParse(json);
+        if (!parsed.success) throw new UpstreamError("qloo", 200, "Qloo entities returned an unexpected response shape");
+        for (const raw of parsed.data.results) {
+          const e = EntityTags.safeParse(raw);
+          if (!e.success) continue;
+          const tags = (e.data.tags ?? []).map((t) => ({ id: t.tag_id ?? t.id ?? t.name, name: t.name, type: t.type ?? "" }));
+          out[e.data.entity_id] = tags;
+          tagCache.set(e.data.entity_id, tags);
+        }
+      }),
+    );
+    return out;
+  }
+
+  /**
+   * Qloo heatmap for one artist around a point: geohash cells with the artist's
+   * rank-normalised affinity (GET /v2/insights filter.type=urn:heatmap).
+   */
+  async heatmap(targetEntityId: string, lat: number, lng: number, radiusMeters: number): Promise<HeatCell[]> {
+    const key = `${targetEntityId}|${lat.toFixed(3)}|${lng.toFixed(3)}|${Math.round(radiusMeters)}`;
+    return heatCache.getOrLoad(key, async () => {
+      const qs = new URLSearchParams({
+        "filter.type": "urn:heatmap",
+        "signal.interests.entities": targetEntityId,
+        "filter.location": `POINT(${lng} ${lat})`,
+        "filter.location.radius": String(Math.round(radiusMeters)),
+      });
+      const json = await fetchJson({ service: "qloo", url: `${this.baseUrl}/v2/insights?${qs}`, headers: this.headers, limiter, retries: 3, label: "Qloo heatmap" });
+      const parsed = HeatmapResponse.safeParse(json);
+      if (!parsed.success) throw new UpstreamError("qloo", 200, "Qloo heatmap returned an unexpected response shape");
+      return parsed.data.results.heatmap
+        .filter((c) => typeof c.query.affinity === "number")
+        .map((c) => ({ lat: c.location.latitude, lng: c.location.longitude, geohash: c.location.geohash, affinity: c.query.affinity as number }));
+    });
   }
 }

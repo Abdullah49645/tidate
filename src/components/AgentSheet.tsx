@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { compactResult } from "@/lib/pipeline";
 import type { AnalysisResult } from "@/lib/types";
 import { ArrowUp, Close } from "./icons";
 
@@ -14,6 +15,7 @@ const TOOL_LABEL: Record<string, string> = {
   list_markets: "Cities",
   find_artist: "Artist lookup",
   analyze_candidate_dates: "Date analysis",
+  find_best_nights: "Night search",
   explain_date: "Breakdown",
   compare_dates: "Comparison",
   what_if_exclude: "What-if",
@@ -71,7 +73,7 @@ export function AgentSheet({
         body: JSON.stringify({
           mode,
           messages: next.filter((m) => m.role !== "error").map(({ role, content }) => ({ role, content })),
-          previous: current,
+          previous: current?.discover ? compactResult(current) : current,
           today: new Date().toISOString().slice(0, 10),
         }),
       });

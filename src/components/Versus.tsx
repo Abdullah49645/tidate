@@ -10,7 +10,7 @@ function meanCloseness(d: DateScore): number | null {
   return w ? s.reduce((a, c) => a + (c.relativeAffinity ?? c.affinity ?? 0) * c.temporalWeight, 0) / w : null;
 }
 
-const pctOf = (x: number | null | undefined) => `${Math.round((x ?? 0) * 100)}%`;
+const pctOf = (x: number | null | undefined) => `${Math.min(99, Math.round((x ?? 0) * 100))}%`;
 
 /** Deterministic explanation of where the two rankings differ, built from the data. */
 function note(dates: DateScore[], artist: string) {
@@ -58,7 +58,11 @@ export function Versus({ dates, artist }: { dates: DateScore[]; artist: string }
   const b = [...dates].sort((a, b) => a.baselineRank - b.baselineRank);
   const n = dates.length;
   const h = n * ROW;
-  const y = (rank: number) => (rank - 0.5) * ROW;
+  // Positions are the order within the dates shown; labels keep each date's own rank
+  // (in a night search the chart shows a subset, ranked among all searched nights).
+  const posQ = new Map(q.map((d, i) => [d.date, i + 1]));
+  const posB = new Map(b.map((d, i) => [d.date, i + 1]));
+  const y = (pos: number) => (pos - 0.5) * ROW;
   const pick = q[0]?.date;
   const agrees = b[0]?.date === pick;
 
@@ -76,9 +80,9 @@ export function Versus({ dates, artist }: { dates: DateScore[]; artist: string }
         </div>
 
         <ol className="slope-col left" aria-label="Ranked by headcount">
-          {b.map((d, i) => (
+          {b.map((d) => (
             <li key={d.date} className={d.date === pick ? "pick" : undefined}>
-              <span className="n">{i + 1}</span>
+              <span className="n">{d.baselineRank}</span>
               <span className="d">{fmtDay(d.date)}</span>
               <small>
                 {d.inWindowEvents} shows<span className="wide-only">, {d.baselineWeighted.toFixed(1)} weighted</span>
@@ -89,8 +93,8 @@ export function Versus({ dates, artist }: { dates: DateScore[]; artist: string }
 
         <svg className="slope-lines" viewBox={`0 0 100 ${h}`} preserveAspectRatio="none" aria-hidden>
           {dates.map((d) => {
-            const y1 = y(d.baselineRank);
-            const y2 = y(d.rank);
+            const y1 = y(posB.get(d.date)!);
+            const y2 = y(posQ.get(d.date)!);
             const isPick = d.date === pick;
             return (
               <g key={d.date} className={isPick ? "pick" : undefined}>
@@ -101,9 +105,9 @@ export function Versus({ dates, artist }: { dates: DateScore[]; artist: string }
         </svg>
 
         <ol className="slope-col right" aria-label="Ranked with Qloo">
-          {q.map((d, i) => (
+          {q.map((d) => (
             <li key={d.date} className={d.date === pick ? "pick" : undefined}>
-              <span className="n">{i + 1}</span>
+              <span className="n">{d.rank}</span>
               <span className="d">{fmtDay(d.date)}</span>
               <small>clash score {fmt2(d.score)}</small>
             </li>

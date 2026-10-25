@@ -3,7 +3,7 @@
 **Know which nights your crowd is already spoken for.**
 
 Undertow helps concert promoters, talent buyers and artist teams choose between the
-dates they can hold. For each candidate date it finds every music event within two
+dates they can hold, or find the quietest nights in a range. For each candidate date it finds every music event within two
 weeks in the same market (Ticketmaster), asks Qloo how strongly each competing act's
 audience overlaps with your artist's, and ranks your dates by that pull, with every
 number traceable to a specific show, Qloo signal and timing weight.
@@ -48,17 +48,30 @@ Repository: https://github.com/Abdullah49645/undertow
   separately from the score.
 - **What-if**: untick any show to re-rank instantly (the engine runs in the
   browser too).
+- **Find a night**: instead of fixed dates, give a range (up to 70 days) and the
+  nights of the week. Every matching night (up to 40) is scored by the same engine
+  and shown on a shaded calendar with the best three numbered and the headcount's
+  pick marked. Nights you can't use (a holiday, a dark venue) can be skipped and
+  the ranking updates.
+- **Provisional ranking**: while performers are still being matched, the ranking
+  from the lookups finished so far streams into the progress panel.
+- **Why the overlap**: each show lists the Qloo genres and influences it shares with
+  your artist ("Like Kirk Franklin, tagged Rhythm & Blues and Soul"), or says
+  plainly that it shares none, which means the overlap is in listeners, not labels.
+- **Fan map**: Qloo's heatmap of where your artist's audience is concentrated in the
+  market, with the venues pulling most on the chosen night pinned and placed in it.
+  The tags and the map are context only; neither changes a score.
 
 ### Three ways in
 
 1. **Hold sheet (web form)**: runs the pipeline step by step with live progress.
 2. **Agent**: ask in plain language ("I can hold May 9, 16 or 23 for Clairo in
-   Chicago…"). An AI SDK `ToolLoopAgent` calls `find_artist`,
-   `analyze_candidate_dates`, `explain_date`, `compare_dates` and
-   `what_if_exclude`. It never produces numbers itself, and its final answer is
+   Chicago…" or "find Clairo a Saturday in March"). An AI SDK `ToolLoopAgent` calls
+   `find_artist`, `analyze_candidate_dates`, `find_best_nights`, `explain_date`,
+   `compare_dates` and `what_if_exclude`. It never produces numbers itself, and its final answer is
    checked against the engine's recommendation.
 3. **MCP server** at `/api/mcp` (Streamable HTTP): tools `score_candidate_dates`,
-   `find_artist`, `list_markets` for any MCP client.
+   `find_best_nights`, `find_artist`, `list_markets` for any MCP client.
 
 ## Project layout
 
@@ -141,8 +154,10 @@ Point any Streamable HTTP MCP client at `https://<your-app>/api/mcp`:
 ```
 
 For stdio-only clients: `npx mcp-remote https://<your-app>/api/mcp`.
-`score_candidate_dates` takes `{ artist, marketId, candidateDates[], artistEntityId?, mode? }`
-and returns structured evidence plus a text summary. Results are labelled as demo
+`score_candidate_dates` takes `{ artist, marketId, candidateDates[], artistEntityId?, mode? }`;
+`find_best_nights` takes `{ artist, marketId, from, to, nights?, artistEntityId?, mode? }`
+with `nights` one of `fri-sat` (default), `thu-sat`, `all`. Both return structured
+evidence plus a text summary. Results are labelled as demo
 data when the server has no live keys.
 
 ## Data provenance

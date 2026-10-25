@@ -10,6 +10,7 @@ import {
   prepareEvents,
   relativeAffinities,
   scoreDates,
+  temporalWeight,
   typicalUnit,
   type PerformerLink,
   type SignalLookup,
@@ -17,12 +18,21 @@ import {
 import type { EventSearchResult } from "./ticketmaster/client";
 import {
   AnalysisRequestSchema,
+  DiscoverRequestSchema,
+  NIGHTS,
+  candidateNights,
   type AffinitySignal,
+  type AnalysisRequest,
   type AnalysisRequestInput,
   type AnalysisResult,
   type ArtistCandidate,
   type ArtistResolution,
   type Diagnostic,
+  type DiscoverRequestInput,
+  type HeatCell,
+  type NightsId,
+  type ProvisionalRanking,
+  type TasteTag,
 } from "./types";
 import type { Market } from "./markets";
 
@@ -34,9 +44,17 @@ export interface DataProvider {
    * first; any not reached are marked "not-checked" and left unscored.
    */
   resolveBudgetMs?: number;
+  /** Lookup budget for a night search, which has many more performers (ms). Defaults to resolveBudgetMs. */
+  discoverBudgetMs?: number;
   searchEvents(p: { market: Market; radiusMiles: number; startDate: string; endDate: string }): Promise<EventSearchResult>;
   searchArtists(name: string): Promise<ArtistCandidate[]>;
   affinities(targetEntityId: string, entityIds: string[]): Promise<Record<string, AffinitySignal>>;
+  /** How often to stream a provisional ranking while lookups run (ms). Default 2500. */
+  provisionalEveryMs?: number;
+  /** Qloo tags per entity (context only; not used in scoring). */
+  entityTags?(entityIds: string[]): Promise<Record<string, TasteTag[]>>;
+  /** Qloo heatmap for the target artist around a market (context only). */
+  fanHeatmap?(targetEntityId: string, market: Market, radiusMiles: number): Promise<HeatCell[]>;
 }
 
 export type StepId = "validate" | "target" | "events" | "performers" | "affinity" | "score" | "verify";
@@ -55,6 +73,8 @@ export interface ProgressEvent {
   step: StepId;
   status: "running" | "done" | "warning" | "error";
   detail?: string;
+  /** Ranking from the lookups finished so far (sent during the performers step). */
+  provisional?: ProvisionalRanking;
 }
 
 export type PipelineOutcome =
@@ -108,31 +128,63 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R
   return out;
 }
 
-export async function runAnalysis(
-  provider: DataProvider,
-  input: AnalysisRequestInput,
-  onProgress: (e: ProgressEvent) => void = () => {},
-): Promise<PipelineOutcome> {
-  const diagnostics: Diagnostic[] = [];
+type Progress = (e: ProgressEvent) => void;
 
-  /* 1. Validate ------------------------------------------------------ */
+function invalid(issues: string[], onProgress: Progress): PipelineOutcome {
+  onProgress({ step: "validate", status: "error", detail: issues[0] });
+  return { kind: "invalid", message: "The request is not valid.", issues };
+}
+
+/** Score a handful of dates the user can hold. */
+export async function runAnalysis(provider: DataProvider, input: AnalysisRequestInput, onProgress: Progress = () => {}): Promise<PipelineOutcome> {
   onProgress({ step: "validate", status: "running" });
   const parsed = AnalysisRequestSchema.safeParse(input);
-  if (!parsed.success) {
-    const issues = parsed.error.issues.map((i) => `${i.path.join(".") || "request"}: ${i.message}`);
-    onProgress({ step: "validate", status: "error", detail: issues[0] });
-    return { kind: "invalid", message: "The request is not valid.", issues };
-  }
+  if (!parsed.success) return invalid(parsed.error.issues.map((i) => `${i.path.join(".") || "request"}: ${i.message}`), onProgress);
   const req = parsed.data;
   const market = getMarket(req.marketId);
-  if (!market) {
-    onProgress({ step: "validate", status: "error", detail: "Unknown market" });
-    return { kind: "invalid", message: "Unknown market.", issues: [`marketId: ${req.marketId} is not supported`] };
-  }
+  if (!market) return invalid([`marketId: ${req.marketId} is not supported`], onProgress);
   const dates = [...req.candidateDates].sort();
+  onProgress({ step: "validate", status: "done", detail: `${market.label}, ${dates.length} date${dates.length > 1 ? "s" : ""}` });
+  return analyse(provider, { ...req, candidateDates: dates }, market, undefined, onProgress);
+}
+
+/** Find the quietest nights in a range: every matching weekday is scored as a candidate. */
+export async function runDiscovery(provider: DataProvider, input: DiscoverRequestInput, onProgress: Progress = () => {}): Promise<PipelineOutcome> {
+  onProgress({ step: "validate", status: "running" });
+  const parsed = DiscoverRequestSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error.issues.map((i) => `${i.path.join(".") || "request"}: ${i.message}`), onProgress);
+  const { from, to, nights, ...rest } = parsed.data;
+  const market = getMarket(rest.marketId);
+  if (!market) return invalid([`marketId: ${rest.marketId} is not supported`], onProgress);
+  const dates = candidateNights(from, to, nights);
+  onProgress({ step: "validate", status: "done", detail: `${market.label}, ${dates.length} ${NIGHTS[nights].plural}` });
+  return analyse(provider, { ...rest, candidateDates: dates }, market, { from, to, nights }, onProgress);
+}
+
+/** Drop per-show contributions from a result to keep large payloads small; the client re-scores. */
+export function compactResult(result: AnalysisResult): AnalysisResult {
+  return { ...result, compact: true, dates: result.dates.map((d) => ({ ...d, contributions: [] })) };
+}
+
+/** Restore contributions on a compact result by re-running the engine on the stored inputs. */
+export function hydrateResult(result: AnalysisResult): AnalysisResult {
+  if (!result.compact) return result;
+  const { links, signals, typicalUnit } = rebuildScoringInputs(result);
+  const dates = scoreDates({ candidateDates: result.request.candidateDates, events: result.events, links, signals, typicalUnit });
+  return { ...result, compact: false, dates };
+}
+
+async function analyse(
+  provider: DataProvider,
+  req: AnalysisRequest,
+  market: Market,
+  discover: { from: string; to: string; nights: NightsId } | undefined,
+  onProgress: Progress,
+): Promise<PipelineOutcome> {
+  const diagnostics: Diagnostic[] = [];
+  const dates = req.candidateDates;
   const windowStart = addDays(dates[0], -WINDOW_DAYS);
   const windowEnd = addDays(dates[dates.length - 1], WINDOW_DAYS);
-  onProgress({ step: "validate", status: "done", detail: `${market.label}, ${dates.length} date${dates.length > 1 ? "s" : ""}` });
 
   /* 2. Target artist ------------------------------------------------- */
   onProgress({ step: "target", status: "running", detail: req.artist });
@@ -191,19 +243,64 @@ export async function runAnalysis(
   });
 
   /* 4. Performer resolution ----------------------------------------- */
-  // Priority: performers whose shows are closest to a candidate date are looked up first.
-  const names = new Map<string, { name: string; gap: number }>(); // normalised -> display + nearest gap
+  // Priority: performers whose shows weigh most on the candidate dates are looked up
+  // first (summed timing weight across dates; ties go to the closest show). With a
+  // few dates this is closest-first; across a month of nights it favours acts that
+  // sit near many of them.
+  const names = new Map<string, { name: string; gap: number; exposure: number }>(); // normalised -> display, nearest gap, exposure
   for (const e of prepared.eligible) {
-    const gap = e.localDate ? Math.min(...dates.map((d) => Math.abs(dayDiff(d, e.localDate!)))) : 99;
+    const gaps = e.localDate ? dates.map((d) => Math.abs(dayDiff(d, e.localDate!))) : [];
+    const gap = gaps.length ? Math.min(...gaps) : 99;
+    const exposure = gaps.reduce((s, g) => s + temporalWeight(g), 0);
     for (const p of e.performers) {
       const k = normaliseName(p.name);
       const cur = names.get(k);
-      if (!cur || gap < cur.gap) names.set(k, { name: p.name, gap });
+      if (!cur) names.set(k, { name: p.name, gap, exposure });
+      else names.set(k, { name: cur.name, gap: Math.min(gap, cur.gap), exposure: cur.exposure + exposure });
     }
   }
-  const queue = [...names.values()].sort((a, b) => a.gap - b.gap || a.name.localeCompare(b.name));
+  const queue = [...names.values()].sort((a, b) => b.exposure - a.exposure || a.gap - b.gap || a.name.localeCompare(b.name));
   onProgress({ step: "performers", status: "running", detail: `${names.size} distinct performers` });
-  const deadline = provider.resolveBudgetMs ? Date.now() + provider.resolveBudgetMs : Infinity;
+  const budget = discover ? (provider.discoverBudgetMs ?? provider.resolveBudgetMs) : provider.resolveBudgetMs;
+  const deadline = budget ? Date.now() + budget : Infinity;
+
+  // Provisional ranking: every few seconds, fetch affinities for the acts matched so
+  // far and score with what is known. Those affinities are reused in step 5.
+  const early: Record<string, AffinitySignal> = {};
+  const soFar = new Map<string, ArtistResolution>();
+  const every = provider.provisionalEveryMs ?? 2500;
+  let lastFlush = Date.now();
+  let flushing: Promise<void> | null = null;
+  const provisional = async () => {
+    const ids = [...new Set([...soFar.values()].filter((r) => r.status === "exact" && r.entity).map((r) => r.entity!.entityId))].filter(
+      (id) => id !== targetId && !(id in early),
+    );
+    if (ids.length) Object.assign(early, await provider.affinities(targetId, ids));
+    const events = prepared.eligible.filter((e) => !e.performers.some((p) => soFar.get(normaliseName(p.name))?.entity?.entityId === targetId));
+    const links: Record<string, PerformerLink[]> = {};
+    const raw: Record<string, SignalLookup> = {};
+    for (const e of events) {
+      links[e.eventId] = e.performers.map((p) => {
+        const r = soFar.get(normaliseName(p.name));
+        const id = r && r.status === "exact" && r.entity && r.entity.entityId in early ? r.entity.entityId : null;
+        if (id) raw[id] = { affinity: early[id].affinity, popularity: early[id].popularity ?? r!.entity!.popularity ?? null };
+        return { name: p.name, entityId: id };
+      });
+    }
+    const signals = relativeAffinities(raw);
+    const scored = scoreDates({ candidateDates: dates, events, links, signals, typicalUnit: typicalUnit(signals) });
+    onProgress({
+      step: "performers",
+      status: "running",
+      detail: `${soFar.size} of ${names.size} looked up`,
+      provisional: {
+        checked: soFar.size,
+        total: names.size,
+        dates: scored.map((d) => ({ date: d.date, score: d.score, rank: d.rank, scoredEvents: d.scoredEvents })),
+      },
+    });
+  };
+
   const resolutionsList = await mapLimit(queue, RESOLVE_CONCURRENCY, async ({ name }): Promise<ArtistResolution> => {
     if (Date.now() > deadline) {
       return {
@@ -215,8 +312,21 @@ export async function runAnalysis(
         note: "Not looked up within the time limit",
       };
     }
-    return resolveArtist((x) => provider.searchArtists(x), name);
+    const r = await resolveArtist((x) => provider.searchArtists(x), name);
+    soFar.set(normaliseName(name), r);
+    if (!flushing && Date.now() - lastFlush >= every && Date.now() < deadline && soFar.size < names.size) {
+      flushing = provisional()
+        .catch(() => {
+          /* a provisional ranking is optional; step 5 fetches anything missing */
+        })
+        .finally(() => {
+          flushing = null;
+          lastFlush = Date.now();
+        });
+    }
+    return r;
   });
+  await flushing;
   const resolutions: Record<string, ArtistResolution> = {};
   for (const r of resolutionsList) {
     if (provider.mode === "demo") r.provenance.source = "demo-fixture";
@@ -293,7 +403,10 @@ export async function runAnalysis(
   let affinities: Record<string, AffinitySignal> = {};
   if (entityIds.length) {
     try {
-      affinities = await provider.affinities(targetId, entityIds);
+      const reused = entityIds.filter((id) => id in early);
+      const fresh = entityIds.filter((id) => !(id in early));
+      affinities = Object.fromEntries(reused.map((id) => [id, early[id]]));
+      if (fresh.length) Object.assign(affinities, await provider.affinities(targetId, fresh));
     } catch (err) {
       const message = err instanceof Error ? err.message : "Qloo insights failed";
       onProgress({ step: "affinity", status: "error", detail: message });
@@ -329,14 +442,37 @@ export async function runAnalysis(
 
   /* 7. Verify -------------------------------------------------------- */
   onProgress({ step: "verify", status: "running" });
+  const weak: string[] = [];
   for (const d of scored) {
     const sum = d.contributions.reduce((s, c) => s + (c.contribution ?? 0), 0);
     if (Math.abs(sum - d.score) > 1e-9) {
       onProgress({ step: "verify", status: "error", detail: "Breakdown does not sum to total" });
       return { kind: "error", step: "verify", message: "Internal consistency check failed: score breakdown does not sum to the total." };
     }
-    if (d.evidence === "weak") {
-      diagnostics.push({ level: "warning", code: "weak-evidence", message: `${d.date}: fewer than half of nearby shows (time-weighted) could be scored. Treat this date's score as a lower bound.` });
+    if (d.evidence === "weak") weak.push(d.date);
+  }
+  if (weak.length && weak.length <= 3) {
+    for (const date of weak.sort()) {
+      diagnostics.push({ level: "warning", code: "weak-evidence", message: `${date}: fewer than half of nearby shows (time-weighted) could be scored. Treat this date's score as a lower bound.` });
+    }
+  } else if (weak.length) {
+    diagnostics.push({
+      level: "warning",
+      code: "weak-evidence",
+      message: `${weak.length} of ${scored.length} nights: fewer than half of nearby shows (time-weighted) could be scored. Treat those scores as lower bounds; running again looks up more acts.`,
+    });
+  }
+  // A night that is quiet for every act (a holiday, say) wins on a headcount and on Qloo alike.
+  if (discover && scored.length >= 6) {
+    const counts = scored.map((d) => d.baselineWeighted).sort((a, b) => a - b);
+    const median = counts[Math.floor(counts.length / 2)];
+    const best = scored.find((d) => d.rank === 1);
+    if (best && median > 0 && best.baselineWeighted < median * 0.4) {
+      diagnostics.push({
+        level: "info",
+        code: "quiet-market-night",
+        message: `${best.date} is quiet for everyone: ${best.inWindowEvents} shows nearby against a typical ${Math.round(scored.map((d) => d.inWindowEvents).sort((a, b) => a - b)[Math.floor(scored.length / 2)])}. Check it isn't a holiday or a night the whole market avoids.`,
+      });
     }
   }
   if (!verdict.robust && !verdict.holdsIfTypical && scored.length > 1) {
@@ -352,7 +488,8 @@ export async function runAnalysis(
   const result: AnalysisResult = {
     version: SCORING_VERSION,
     mode: provider.mode,
-    request: { ...req, candidateDates: dates },
+    request: req,
+    ...(discover ? { discover } : {}),
     market: { id: market.id, label: market.label },
     target,
     window: { start: windowStart, end: windowEnd },

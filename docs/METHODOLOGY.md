@@ -7,14 +7,28 @@ your artist. Version: `undertow-score/1.2.0` (`src/lib/scoring/engine.ts`).
 ## Pipeline
 
 1. **Validate** the request: 1–4 distinct real calendar dates, a supported market.
+   A night search instead gives a range of at most 70 days and the nights of the
+   week; every matching night (2 to 40) becomes a candidate date and is scored
+   exactly like a given date.
 2. **Resolve the target artist** in Qloo (`/search`, `types=urn:entity:artist`).
    Anything other than a confident match stops and asks the user to pick.
 3. **Retrieve events** from Ticketmaster (`classificationName=music`, `geoPoint` +
    `radius` around the market centre) for 14 days either side of the dates.
+   Ticketmaster stops paging at 1,000 results, so a window that reports more is
+   split in half (down to single days) and the pieces are merged by event id.
 4. **Exclude** with a recorded reason: the target's own shows, cancelled,
    postponed, TBA/TBD dates, duplicate listings (same venue, date and headliner).
    Rescheduled shows are kept at their current date and flagged.
-5. **Match competing performers** to Qloo with the same policy (below).
+5. **Match competing performers** to Qloo with the same policy (below), under a
+   time budget (30 s for given dates, 45 s for a night search). Performers are
+   looked up in order of their summed timing weight across the candidate dates,
+   ties going to the closest show: with a few dates this is closest first, across
+   a month of nights it favours acts near many of them. Acts not reached are
+   marked "not checked" and bounded like any unmatched act; a second run reuses
+   cached lookups and reaches further. Every few seconds during this step the
+   engine scores what is known so far and streams it as a **provisional ranking**
+   (labelled as such: the pool behind each act's rank is still growing). Those
+   affinities are reused in step 6, so nothing is fetched twice.
 6. **Fetch affinity**: Qloo `/v2/insights` with `filter.type=urn:entity:artist`,
    `signal.interests.entities=<target>`, `filter.results.entities=<competitors>`.
    Qloo documents `filter.results.entities` as the way to assess an entity's
@@ -100,6 +114,39 @@ Score size and evidence quality are reported separately.
 The **plain count** baseline uses the identical eligible events and timing
 weights, counting every show alike (`Σ W`). Showing both rankings side by side is
 how the UI makes Qloo's contribution visible; the evaluation tests it.
+
+## Night search specifics
+
+- The verdict compares the best night with the runner-up, as for given dates.
+- A night that is quiet for every act (fewer than 40% of the median night's
+  time-weighted shows) wins under both methods. Undertow flags it ("check it isn't
+  a holiday or a night the whole market avoids") rather than guessing why.
+- Skipping a night in the UI re-runs the engine on the remaining nights; the
+  stored evidence is unchanged.
+- Per-show rows are dropped from the streamed payload and rebuilt in the browser
+  from the stored events, matches and affinities with the same engine (tested to
+  reproduce the server's scores exactly).
+
+## Context shown beside the score (never scored)
+
+- **Shared taste.** Qloo `/entities?entity_ids=…` returns each artist's tags. The
+  UI compares only genre, subgenre, lineage (`urn:tag:influence:qloo`) and named
+  influences (`urn:tag:influenced_by:qloo`), because Qloo also tags almost every
+  artist with adjectives such as "Passionate" or "Loyal", which explain nothing.
+  Spelling variants (R&B / Rhythm & Blues) are merged. When both artists are
+  tagged and nothing is shared, the UI says so: the overlap Qloo measures is in
+  listeners, not labels. Qloo's `/v2/insights/compare` endpoint was tried first;
+  it returns region and instrument tags ("United States", "Drums") at the top for
+  unrelated pairs, so it was not used.
+- **Fan map.** Qloo heatmap (`filter.type=urn:heatmap`, the target as signal,
+  `filter.location=POINT(lng lat)` with the search radius). Cell affinity is
+  rank-normalised within the area (uniform 0–1 for every artist), so it shows
+  where an artist's audience is *relatively* concentrated, not how many fans live
+  there. Maps of different artists in the same city differ (Nashville: Kirk
+  Franklin vs Jodeci r = 0.24, vs Little Big Town r = 0.27), so the map is
+  artist-specific. Venues are placed by the nearest cell within 1.5 km.
+- Neither feeds the score: the evaluation was run on the affinity-based score only,
+  and neither signal has been tested against outcomes.
 
 ## What the score is not
 

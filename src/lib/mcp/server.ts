@@ -42,6 +42,28 @@ export function createUndertowMcpHandler(resolveProvider: (mode?: "live" | "demo
       );
 
       server.registerTool(
+        "find_best_nights",
+        {
+          title: "Find the quietest nights in a date range",
+          description:
+            "Scores every matching night (Fridays and Saturdays by default, at most 40 nights over 70 days) for an artist in a market with the same engine as score_candidate_dates, and returns the best nights first with the shows behind them, every night's rank, and what a plain headcount of nearby shows would pick.",
+          inputSchema: toolSchemas.find_best_nights.extend({ mode: ModeArg }),
+          annotations: { readOnlyHint: true, openWorldHint: true },
+        },
+        async ({ mode, ...input }) => {
+          const { provider, note } = resolveProvider(mode);
+          const out = await createToolHandlers({ provider, latest: null, trace: [] }).find_best_nights(input);
+          const isError = "error" in out || "invalid" in out;
+          const text =
+            "summary" in out
+              ? `${note}\n${out.summary}\nHeadcount would pick ${out.headcountWouldPick}.\n` +
+                out.bestNights.map((d) => `#${d.rank} ${d.date}: score ${d.clashScore} (count-baseline rank ${d.baselineRank}) – ${d.explanation}`).join("\n")
+              : `${note}\n${JSON.stringify(out)}`;
+          return { content: [{ type: "text" as const, text }], structuredContent: { scoringVersion: SCORING_VERSION, ...out } as Record<string, unknown>, isError };
+        },
+      );
+
+      server.registerTool(
         "find_artist",
         {
           title: "Find an artist in Qloo",

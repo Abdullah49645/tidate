@@ -70,6 +70,16 @@ raw Qloo affinity, its rank, popularity and timing, multiplied out. Switch Jodec
 off to show the what-if. Close on "Holds unless unmatched acts are unusually
 close" and the data-coverage details: what Undertow can't see, stated plainly.
 
+**Beat 4, optional if time allows (40 s).** Expand Jodeci: "Like Kirk Franklin,
+tagged Rhythm & Blues and Soul in Qloo." Then Little Big Town: no shared genre,
+yet Qloo still ranks its audience close, which is exactly what a genre filter
+would miss. Scroll to the fan map: Ryman Auditorium sits in the top few percent
+of mapped areas for his audience. Then switch the date field to "Find a night"
+and run Nov 13 to Dec 31: the provisional ranking fills in while acts are looked
+up, the calendar shades every Friday and Saturday, and Undertow flags Christmas
+weekend as quiet for everyone. Skip those two nights and the pick moves. (Re-run
+before recording; quote the screen.)
+
 ## Narration (about 90 seconds)
 
 > Promoters choose between the dates they can hold. The question isn't how many
@@ -99,5 +109,6 @@ Keep this list current; do not claim anything from the right column.
 | End-to-end live analysis in the browser and via the API | Any effect on ticket sales (no outcome data exists) |
 | Agent with real Gemini, tool calling, key and model rotation | |
 | Evaluation E1–E3 run on live data; results in docs/EVALUATION.md | |
-| 60 automated tests, typecheck, lint, production build | |
+| 74 automated tests, typecheck, lint, production build | |
+| Night search, provisional ranking, shared-taste tags and fan map against live Qloo and Ticketmaster (Nashville, Oct 26) | |
 | MCP JSON-RPC calls against the handler (tests) | |

@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { MARKETS } from "@/lib/markets";
-import type { ArtistCandidate, MatchStatus } from "@/lib/types";
-import { fmt2, fmtDay } from "./format";
+import { MAX_DISCOVER_NIGHTS, MAX_DISCOVER_SPAN_DAYS, NIGHTS, candidateNights, type ArtistCandidate, type MatchStatus, type NightsId } from "@/lib/types";
+import { fmt2, fmtDay, fmtShort } from "./format";
 import { Check, Close } from "./icons";
 
 export interface RequestValue {
@@ -12,6 +12,22 @@ export interface RequestValue {
   marketId: string;
   dates: string[];
   radiusMiles: number;
+  /** "compare": score the dates above. "discover": search every matching night between from and to. */
+  kind: "compare" | "discover";
+  from: string;
+  to: string;
+  nights: NightsId;
+}
+
+/** Problems with a night search, checked before sending (the server checks again). */
+export function rangeProblem(v: Pick<RequestValue, "from" | "to" | "nights">): string | null {
+  if (!v.from || !v.to) return "Choose both ends of the range";
+  if (v.from > v.to) return "The range ends before it starts";
+  if ((Date.parse(v.to) - Date.parse(v.from)) / 86_400_000 > MAX_DISCOVER_SPAN_DAYS) return `Up to ${MAX_DISCOVER_SPAN_DAYS} days at a time`;
+  const n = candidateNights(v.from, v.to, v.nights).length;
+  if (n < 2) return "Needs at least two matching nights";
+  if (n > MAX_DISCOVER_NIGHTS) return `${n} nights. Narrow it to ${MAX_DISCOVER_NIGHTS}`;
+  return null;
 }
 
 /** A real live query where Qloo and a headcount disagree (checked against live data in October 2026). */
@@ -100,7 +116,10 @@ export function CommandBar({
 
   const dates = value.dates;
   const duplicate = dates.some((d, i) => dates.indexOf(d) !== i);
-  const canRun = q.length > 0 && dates.length > 0 && !duplicate && !running;
+  const discover = value.kind === "discover";
+  const rangeErr = discover ? rangeProblem(value) : null;
+  const nightCount = discover && !rangeErr ? candidateNights(value.from, value.to, value.nights).length : 0;
+  const canRun = q.length > 0 && !running && (discover ? !rangeErr : dates.length > 0 && !duplicate);
 
   return (
     <>
@@ -178,10 +197,43 @@ export function CommandBar({
         </div>
 
         <div className="cmd-field">
-          <span className="cmd-label" id="dates-label">
-            Dates you can hold
-          </span>
-          <div className="chips" role="group" aria-labelledby="dates-label">
+          <div className="cmd-label cmd-switch" role="group" aria-label="How to choose dates">
+            <button type="button" aria-pressed={!discover} onClick={() => set({ kind: "compare" })}>
+              Dates you can hold
+            </button>
+            <button type="button" aria-pressed={discover} onClick={() => set({ kind: "discover" })}>
+              Find a night
+            </button>
+          </div>
+          {discover ? (
+            <>
+              <div className="chips" role="group" aria-label="Search between">
+                <span className="chip plain">
+                  {fmtShort(value.from)}
+                  <input type="date" value={value.from} aria-label={`Search from ${fmtDay(value.from)}`} onClick={openPicker} onChange={(e) => e.target.value && set({ from: e.target.value })} />
+                </span>
+                <span className="range-to" aria-hidden>
+                  to
+                </span>
+                <span className="chip plain">
+                  {fmtShort(value.to)}
+                  <input type="date" value={value.to} aria-label={`Search until ${fmtDay(value.to)}`} onClick={openPicker} onChange={(e) => e.target.value && set({ to: e.target.value })} />
+                </span>
+              </div>
+              <div className={`field-note${rangeErr ? " err" : ""}`}>
+                <select className="inline-select" value={value.nights} onChange={(e) => set({ nights: e.target.value as NightsId })} aria-label="Nights of the week">
+                  {(Object.keys(NIGHTS) as NightsId[]).map((k) => (
+                    <option key={k} value={k}>
+                      {NIGHTS[k].label}
+                    </option>
+                  ))}
+                </select>
+                {rangeErr ? `, ${rangeErr.charAt(0).toLowerCase()}${rangeErr.slice(1)}` : `, ${nightCount} nights`}
+              </div>
+            </>
+          ) : (
+            <>
+          <div className="chips" role="group" aria-label="Dates you can hold">
             {dates.map((d, i) => (
               <span key={`${d}-${i}`} className={`chip${dates.indexOf(d) !== i ? " invalid" : ""}`}>
                 {fmtDay(d)}
@@ -205,11 +257,13 @@ export function CommandBar({
             )}
           </div>
           <div className={`field-note${duplicate ? " err" : ""}`}>{duplicate ? "Each date only once" : dates.length === 4 ? "Up to four dates" : "\u00a0"}</div>
+            </>
+          )}
         </div>
 
         <div className="cmd-action">
           <button type="submit" className={`btn-primary${running ? " working" : ""}`} disabled={!canRun}>
-            {running ? "Analyzing…" : "Analyze"}
+            {running ? (discover ? "Searching…" : "Analyzing…") : discover ? "Find nights" : "Analyze"}
           </button>
         </div>
       </form>
@@ -219,7 +273,7 @@ export function CommandBar({
           <button
             type="button"
             className="btn-plain"
-            onClick={() => onChange({ ...value, artist: LIVE_EXAMPLE.artist, artistEntityId: undefined, marketId: LIVE_EXAMPLE.marketId, dates: [...LIVE_EXAMPLE.dates] })}
+            onClick={() => onChange({ ...value, kind: "compare", artist: LIVE_EXAMPLE.artist, artistEntityId: undefined, marketId: LIVE_EXAMPLE.marketId, dates: [...LIVE_EXAMPLE.dates] })}
           >
             Try Kirk Franklin in Nashville
           </button>

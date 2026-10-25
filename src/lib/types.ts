@@ -30,6 +30,53 @@ export const AnalysisRequestSchema = z.object({
 export type AnalysisRequest = z.infer<typeof AnalysisRequestSchema>;
 export type AnalysisRequestInput = z.input<typeof AnalysisRequestSchema>;
 
+/** Which nights of the week a date search considers. */
+export const NIGHTS = {
+  "fri-sat": { label: "Fridays and Saturdays", plural: "Fridays and Saturdays", days: [5, 6] },
+  "thu-sat": { label: "Thursdays to Saturdays", plural: "Thursday to Saturday nights", days: [4, 5, 6] },
+  all: { label: "Every night", plural: "nights", days: [0, 1, 2, 3, 4, 5, 6] },
+} as const;
+export type NightsId = keyof typeof NIGHTS;
+
+export const MAX_DISCOVER_NIGHTS = 40;
+export const MAX_DISCOVER_SPAN_DAYS = 70;
+
+/** The nights between two dates (inclusive) that fall on the chosen weekdays. */
+export function candidateNights(from: string, to: string, nights: NightsId): string[] {
+  const days: readonly number[] = NIGHTS[nights].days;
+  const out: string[] = [];
+  const d = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  while (d <= end && out.length <= MAX_DISCOVER_NIGHTS) {
+    if (days.includes(d.getUTCDay())) out.push(d.toISOString().slice(0, 10));
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return out;
+}
+
+export const DiscoverRequestSchema = z
+  .object({
+    artist: z.string().trim().min(1, "Artist is required").max(120),
+    artistEntityId: z.string().trim().min(1).max(80).optional(),
+    marketId: z.string().trim().min(1),
+    from: IsoDate,
+    to: IsoDate,
+    nights: z.enum(["fri-sat", "thu-sat", "all"]).default("fri-sat"),
+    radiusMiles: z.number().int().min(5).max(100).default(30),
+  })
+  .refine((r) => r.from <= r.to, { message: "The range must end after it starts", path: ["to"] })
+  .refine((r) => (Date.parse(r.to) - Date.parse(r.from)) / 86_400_000 <= MAX_DISCOVER_SPAN_DAYS, {
+    message: `Search at most ${MAX_DISCOVER_SPAN_DAYS} days at a time`,
+    path: ["to"],
+  })
+  .refine((r) => candidateNights(r.from, r.to, r.nights).length >= 2, { message: "The range needs at least two matching nights", path: ["nights"] })
+  .refine((r) => candidateNights(r.from, r.to, r.nights).length <= MAX_DISCOVER_NIGHTS, {
+    message: `That's more than ${MAX_DISCOVER_NIGHTS} nights. Narrow the range or the nights of the week`,
+    path: ["nights"],
+  });
+export type DiscoverRequest = z.infer<typeof DiscoverRequestSchema>;
+export type DiscoverRequestInput = z.input<typeof DiscoverRequestSchema>;
+
 /* ------------------------------------------------------------------ */
 /* Provenance                                                          */
 /* ------------------------------------------------------------------ */
@@ -210,6 +257,13 @@ export interface AnalysisResult {
   version: string;
   mode: "live" | "demo";
   request: AnalysisRequest;
+  /** Present when the dates were found by searching a range rather than given. */
+  discover?: { from: string; to: string; nights: NightsId };
+  /**
+   * True when per-show contributions were left out of the payload (date searches
+   * score many nights). The client re-scores from events, resolutions and affinities.
+   */
+  compact?: boolean;
   market: { id: string; label: string };
   target: ArtistResolution;
   window: { start: string; end: string };
@@ -227,4 +281,40 @@ export interface Diagnostic {
   level: "info" | "warning" | "error";
   code: string;
   message: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Context (display only; never part of the score)                     */
+/* ------------------------------------------------------------------ */
+
+/** A Qloo tag attached to an artist entity. */
+export interface TasteTag {
+  id: string;
+  name: string;
+  /** Qloo tag type, e.g. urn:tag:genre:qloo. */
+  type: string;
+}
+
+/** Tags two artists share in Qloo, limited to genre, style lineage and influences. */
+export interface SharedTaste {
+  entityId: string;
+  shared: { name: string; kind: "genre" | "influence" }[];
+  /** True when Qloo returned tags for both artists (so "none shared" is a real finding). */
+  checked: boolean;
+}
+
+/** One Qloo heatmap cell: where the target artist's audience is relatively concentrated. */
+export interface HeatCell {
+  lat: number;
+  lng: number;
+  geohash: string;
+  /** Qloo heatmap affinity for the target artist (0..1, rank-normalised within the area). */
+  affinity: number;
+}
+
+/** A ranking computed from the lookups finished so far, streamed while the rest run. */
+export interface ProvisionalRanking {
+  checked: number;
+  total: number;
+  dates: { date: string; score: number; rank: number; scoredEvents: number }[];
 }

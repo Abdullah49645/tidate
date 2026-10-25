@@ -6,9 +6,9 @@
 import { z } from "zod";
 import { MARKETS } from "../markets";
 import { classifyMatch } from "../qloo/resolve";
-import { rebuildScoringInputs, runAnalysis, type DataProvider } from "../pipeline";
+import { rebuildScoringInputs, runAnalysis, runDiscovery, type DataProvider } from "../pipeline";
 import { buildVerdict, diffDates, scoreDates } from "../scoring/engine";
-import type { AnalysisResult, DateScore } from "../types";
+import { NIGHTS, type AnalysisResult, type DateScore } from "../types";
 
 export interface ToolContext {
   provider: DataProvider;
@@ -63,6 +63,27 @@ export function summariseResult(r: AnalysisResult) {
   };
 }
 
+/** A date search scores many nights: detail for the best few, one line for the rest. */
+export function summariseDiscovery(r: AnalysisResult, detailed = 3) {
+  const ordered = [...r.dates].sort((a, b) => a.rank - b.rank);
+  const headcountBest = [...r.dates].sort((a, b) => a.baselineRank - b.baselineRank)[0];
+  return {
+    mode: r.mode === "demo" ? "DEMO (fictional data)" : "live",
+    artist: r.target.entity?.name,
+    market: r.market.label,
+    searched: r.discover ? `${r.discover.from} to ${r.discover.to}, ${NIGHTS[r.discover.nights].label.toLowerCase()}` : null,
+    nightsScored: r.dates.length,
+    recommendation: r.verdict.recommendedDate,
+    robustToMissingData: r.verdict.robust,
+    holdsIfUnmatchedActsAreTypical: r.verdict.holdsIfTypical,
+    headcountWouldPick: headcountBest?.date ?? null,
+    summary: r.verdict.summary,
+    bestNights: ordered.slice(0, detailed).map((d) => summariseDate(d)),
+    allNights: ordered.map((d) => ({ date: d.date, rank: d.rank, clashScore: r3(d.score), baselineRank: d.baselineRank, evidence: d.evidence })),
+    diagnostics: r.diagnostics.map((d) => `${d.level}: ${d.message}`),
+  };
+}
+
 export const toolSchemas = {
   list_markets: z.object({}),
   find_artist: z.object({ name: z.string().min(1).describe("Artist name as the user wrote it") }),
@@ -71,6 +92,14 @@ export const toolSchemas = {
     artistEntityId: z.string().optional().describe("Qloo entity id, only if the user picked one from find_artist candidates"),
     marketId: z.string().describe("One of the ids from list_markets"),
     candidateDates: z.array(z.string()).min(1).max(4).describe("YYYY-MM-DD dates the user is considering"),
+  }),
+  find_best_nights: z.object({
+    artist: z.string().min(1),
+    artistEntityId: z.string().optional().describe("Qloo entity id, only if the user picked one from find_artist candidates"),
+    marketId: z.string().describe("One of the ids from list_markets"),
+    from: z.string().describe("First night to consider, YYYY-MM-DD"),
+    to: z.string().describe("Last night to consider, YYYY-MM-DD (at most 70 days after from)"),
+    nights: z.enum(["fri-sat", "thu-sat", "all"]).optional().describe("Which nights of the week; default fri-sat"),
   }),
   explain_date: z.object({ date: z.string().describe("A candidate date from the latest analysis, YYYY-MM-DD") }),
   compare_dates: z.object({ dateA: z.string(), dateB: z.string() }),
@@ -128,6 +157,24 @@ export function createToolHandlers(ctx: ToolContext) {
         };
       }
       record("analyze_candidate_dates", input, false, out.message);
+      return out.kind === "invalid" ? { invalid: out.message, issues: out.issues } : { error: out.message, failedStep: out.step };
+    },
+
+    async find_best_nights(input: In<"find_best_nights">) {
+      const out = await runDiscovery(ctx.provider, { ...input, nights: input.nights ?? "fri-sat", radiusMiles: 30 });
+      if (out.kind === "result") {
+        ctx.latest = out.result;
+        record("find_best_nights", input, true, `${out.result.dates.length} nights, best ${out.result.verdict.recommendedDate}`);
+        return summariseDiscovery(out.result);
+      }
+      if (out.kind === "clarify") {
+        record("find_best_nights", input, true, "needs clarification");
+        return {
+          needsClarification: out.message,
+          candidates: out.target.candidates.map((c) => ({ entityId: c.entityId, name: c.name, popularity: r3(c.popularity), hint: c.disambiguation })),
+        };
+      }
+      record("find_best_nights", input, false, out.message);
       return out.kind === "invalid" ? { invalid: out.message, issues: out.issues } : { error: out.message, failedStep: out.step };
     },
 

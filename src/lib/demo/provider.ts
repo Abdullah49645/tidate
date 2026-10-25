@@ -8,7 +8,8 @@
  */
 import type { DataProvider } from "../pipeline";
 import { normaliseName } from "../scoring/engine";
-import type { AffinitySignal, ArtistCandidate, CompetingEvent, EventStatus } from "../types";
+import { geohash } from "../markets";
+import type { AffinitySignal, ArtistCandidate, CompetingEvent, EventStatus, HeatCell, TasteTag } from "../types";
 
 export const DEMO_TARGET = "Juniper Static";
 export const DEMO_MARKET = "chicago";
@@ -39,6 +40,61 @@ const ARTISTS: DemoArtist[] = [
   { id: "demo-echo-a", name: "Echo", popularity: 0.41, affinity: 0.5, genre: "Electronic" },
   { id: "demo-echo-b", name: "Echo", popularity: 0.38, affinity: 0.2, genre: "Hard Rock" },
 ];
+
+/** Fictional Qloo-style tags: genres plus invented influences. */
+const TAGS: Record<string, [genres: string[], influences: string[]]> = {
+  "demo-juniper-static": [["Indie Pop", "Dream Pop", "Bedroom Pop"], ["Marlowe Vance", "The Tin Gardens"]],
+  "demo-paper-lanterns": [["Indie Pop", "Bedroom Pop", "Singer-Songwriter"], ["Marlowe Vance"]],
+  "demo-halcyon-drift": [["Dream Pop", "Shoegaze"], ["The Tin Gardens"]],
+  "demo-glass-orchard": [["Indie Rock", "Indie Pop"], []],
+  "demo-saint-ember": [["Alternative", "Indie Rock"], ["The Tin Gardens"]],
+  "demo-coastline-saints": [["Folk", "Americana"], []],
+  "demo-morrow-finch": [["Singer-Songwriter", "Folk"], ["Marlowe Vance"]],
+  "demo-iron-choir": [["Metal", "Hard Rock"], []],
+  "demo-bassline-union": [["Electronic", "House"], []],
+  "demo-lone-prairie": [["Country", "Americana"], []],
+  "demo-velvet-mandate": [["Hip Hop"], []],
+  "demo-dj-kestrel": [["Electronic", "Techno"], []],
+  "demo-echo-a": [["Electronic", "Dream Pop"], []],
+  "demo-echo-b": [["Hard Rock"], []],
+};
+
+function demoTags(id: string): TasteTag[] | undefined {
+  const t = TAGS[id];
+  if (!t) return undefined;
+  return [
+    ...t[0].map((name) => ({ id: `demo-tag-${name}`, name, type: "urn:tag:genre:qloo" })),
+    ...t[1].map((name) => ({ id: `demo-tag-${name}`, name, type: "urn:tag:influenced_by:qloo" })),
+  ];
+}
+
+/** Deterministic fictional heatmap around a point: one hotspot north of the centre, one smaller to the west. */
+function demoHeatmap(lat: number, lng: number): HeatCell[] {
+  const cells: { lat: number; lng: number; raw: number }[] = [];
+  let seed = 7;
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  // Steps match a geohash-6 cell (about 0.0055 deg latitude by 0.011 deg longitude).
+  for (let i = -44; i <= 44; i++) {
+    for (let j = -22; j <= 22; j++) {
+      const la = lat + i * 0.0055;
+      const lo = lng + j * 0.011;
+      const dist = Math.hypot(i / 44, j / 22);
+      if (dist > 1 || rand() > 0.8 * (1.1 - dist)) continue;
+      const hot = Math.exp(-((i - 22) ** 2 / 2 + (j + 1) ** 2 * 2) / 60) + 0.6 * Math.exp(-((i + 6) ** 2 / 2 + (j + 9) ** 2 * 2) / 30);
+      cells.push({ lat: la, lng: lo, raw: hot + rand() * 0.25 });
+    }
+  }
+  const rank = new Map([...cells].sort((a, b) => a.raw - b.raw).map((c, k) => [c, k]));
+  const seen = new Set<string>();
+  return cells
+    .map((c) => ({
+      lat: +c.lat.toFixed(5),
+      lng: +c.lng.toFixed(5),
+      geohash: geohash(c.lat, c.lng, 6),
+      affinity: cells.length > 1 ? rank.get(c)! / (cells.length - 1) : 1,
+    }))
+    .filter((c) => !seen.has(c.geohash) && !!seen.add(c.geohash));
+}
 
 const V = {
   larkspur: { id: "demo-v-larkspur", name: "Larkspur Hall", lat: 41.889, lng: -87.636 },
@@ -124,6 +180,17 @@ export function createDemoProvider(): DataProvider {
         };
       }
       return out;
+    },
+    async entityTags(ids: string[]) {
+      const out: Record<string, TasteTag[]> = {};
+      for (const id of ids) {
+        const t = demoTags(id);
+        if (t) out[id] = t;
+      }
+      return out;
+    },
+    async fanHeatmap(targetEntityId, market) {
+      return targetEntityId === "demo-juniper-static" ? demoHeatmap(market.lat, market.lng) : [];
     },
   };
 }

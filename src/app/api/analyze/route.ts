@@ -1,11 +1,13 @@
 import { z } from "zod";
-import { runAnalysis, type ProgressEvent } from "@/lib/pipeline";
+import { compactResult, runAnalysis, runDiscovery, type ProgressEvent } from "@/lib/pipeline";
 import { ConfigurationError, getProvider } from "@/lib/providers";
 
 export const maxDuration = 60;
 
 const Body = z.object({
   mode: z.enum(["live", "demo"]),
+  /** "compare" scores the given dates; "discover" scores every matching night in a range. */
+  kind: z.enum(["compare", "discover"]).default("compare"),
   request: z.unknown(),
 });
 
@@ -19,7 +21,7 @@ export async function POST(req: Request) {
   try {
     body = Body.parse(await req.json());
   } catch {
-    return Response.json({ error: "Body must be { mode: 'live' | 'demo', request: {...} }" }, { status: 400 });
+    return Response.json({ error: "Body must be { mode: 'live' | 'demo', kind?: 'compare' | 'discover', request: {...} }" }, { status: 400 });
   }
 
   let provider;
@@ -35,8 +37,10 @@ export async function POST(req: Request) {
     async start(controller) {
       const send = (line: AnalyzeStreamLine) => controller.enqueue(encoder.encode(JSON.stringify(line) + "\n"));
       try {
-        const outcome = await runAnalysis(provider, body.request as never, (event) => send({ type: "progress", event }));
-        send({ type: "outcome", outcome });
+        const progress = (event: ProgressEvent) => send({ type: "progress", event });
+        const outcome = body.kind === "discover" ? await runDiscovery(provider, body.request as never, progress) : await runAnalysis(provider, body.request as never, progress);
+        // A date search scores many nights; per-show rows are re-derived in the browser.
+        send({ type: "outcome", outcome: outcome.kind === "result" && body.kind === "discover" ? { ...outcome, result: compactResult(outcome.result) } : outcome });
       } catch (err) {
         send({ type: "fatal", message: err instanceof Error ? err.message : "Unexpected error" });
       } finally {

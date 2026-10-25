@@ -17,9 +17,12 @@ export function createLiveProvider(): DataProvider {
   return {
     mode: "live",
     resolveBudgetMs: Number(process.env.UNDERTOW_LOOKUP_BUDGET_MS ?? 30_000),
+    discoverBudgetMs: Number(process.env.UNDERTOW_DISCOVER_BUDGET_MS ?? 45_000),
     searchEvents: (p) => searchMusicEvents(tmKey, p),
     searchArtists: (name) => cachedSearchArtists(name.trim()),
     affinities: (target, ids) => qloo.affinities(target, ids),
+    entityTags: (ids) => qloo.entityTags(ids),
+    fanHeatmap: (target, market, radiusMiles) => qloo.heatmap(target, market.lat, market.lng, radiusMiles * 1609.344),
   };
 }
 

@@ -16,7 +16,10 @@ export function DateCards({
   best,
   selected,
   onSelect,
+  total,
 }: {
+  /** Ranks out of this many (defaults to the number of cards). */
+  total?: number;
   dates: DateScore[];
   best: string | null;
   selected: string | null;
@@ -31,7 +34,7 @@ export function DateCards({
         const isBest = d.date === best && dates.length > 1 && dates.some((x) => x.scoredEvents > 0);
         return (
           <button key={d.date} type="button" className="date-card" aria-pressed={selected === d.date} onClick={() => onSelect(d.date)}>
-            <div className={`tag${isBest ? " best" : ""}`}>{isBest ? "Best night" : `Ranked ${d.rank} of ${dates.length}`}</div>
+            <div className={`tag${isBest ? " best" : ""}`}>{isBest ? "Best night" : `Ranked ${d.rank} of ${total ?? dates.length}`}</div>
             <div className="day">{fmtDay(d.date)}</div>
             <div className="score-row">
               <span className="score">

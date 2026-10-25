@@ -148,59 +148,78 @@ export interface EventSearchResult {
 
 /**
  * Searches music events around a market centre for a date range.
+ * Windows over Ticketmaster's 1,000-result paging limit are split until each fits.
  * The UTC window is widened by one day on each side so that events whose
  * local date falls inside the range are not lost to time-zone offsets; the
  * engine compares local calendar dates.
  */
 export async function searchMusicEvents(apiKey: string, p: EventSearchParams): Promise<EventSearchResult> {
   const gh = geohash(p.market.lat, p.market.lng, 9);
-  const startUtc = `${shiftDate(p.startDate, -1)}T00:00:00Z`;
-  const endUtc = `${shiftDate(p.endDate, 1)}T23:59:59Z`;
-  const describe = `GET discovery/v2/events classificationName=music geoPoint=${gh} radius=${p.radiusMiles}mi ${startUtc}..${endUtc}`;
-  const cacheKey = `${gh}|${p.radiusMiles}|${startUtc}|${endUtc}`;
+  const firstDay = shiftDate(p.startDate, -1);
+  const lastDay = shiftDate(p.endDate, 1);
+  const cacheKey = `${gh}|${p.radiusMiles}|${firstDay}|${lastDay}`;
 
   return cache.getOrLoad(cacheKey, async () => {
-    const meta = { pagesFetched: 0, totalReported: null as number | null, truncated: false, malformed: 0 };
-    const out: CompetingEvent[] = [];
+    const meta = { pagesFetched: 0, totalReported: 0, truncated: false, malformed: 0 };
+    const byId = new Map<string, CompetingEvent>();
     const retrievedAt = new Date().toISOString();
-    for (let page = 0; page * PAGE_SIZE < MAX_ITEMS; page++) {
-      const qs = new URLSearchParams({
-        apikey: apiKey,
-        classificationName: "music",
-        geoPoint: gh,
-        radius: String(p.radiusMiles),
-        unit: "miles",
-        startDateTime: startUtc,
-        endDateTime: endUtc,
-        size: String(PAGE_SIZE),
-        page: String(page),
-        sort: "date,asc",
-      });
-      const json = await fetchJson({
-        service: "ticketmaster",
-        url: `${BASE}?${qs}`,
-        limiter,
-        label: "Ticketmaster event search",
-      });
-      const parsed = SearchResponse.safeParse(json);
-      if (!parsed.success) throw new UpstreamError("ticketmaster", 200, "Ticketmaster returned an unexpected response shape");
-      meta.pagesFetched += 1;
-      meta.totalReported = parsed.data.page?.totalElements ?? meta.totalReported;
-      const items = parsed.data._embedded?.events ?? [];
-      for (const raw of items) {
-        const ev = normaliseTmEvent(raw, retrievedAt, describe);
-        if (ev) out.push(ev);
-        else meta.malformed += 1;
-      }
-      const totalPages = parsed.data.page?.totalPages ?? 0;
-      if (items.length < PAGE_SIZE || page + 1 >= totalPages) break;
-      if ((page + 2) * PAGE_SIZE > MAX_ITEMS) {
-        meta.truncated = true;
-        break;
+
+    // Ticketmaster stops paging at 1,000 results. A busy market over several weeks
+    // exceeds that, so a window reporting more than the limit is split in half
+    // (down to single days) and the pieces are merged by event id.
+    async function window(from: string, to: string): Promise<void> {
+      const startUtc = `${from}T00:00:00Z`;
+      const endUtc = `${to}T23:59:59Z`;
+      const describe = `GET discovery/v2/events classificationName=music geoPoint=${gh} radius=${p.radiusMiles}mi ${startUtc}..${endUtc}`;
+      for (let page = 0; page * PAGE_SIZE < MAX_ITEMS; page++) {
+        const qs = new URLSearchParams({
+          apikey: apiKey,
+          classificationName: "music",
+          geoPoint: gh,
+          radius: String(p.radiusMiles),
+          unit: "miles",
+          startDateTime: startUtc,
+          endDateTime: endUtc,
+          size: String(PAGE_SIZE),
+          page: String(page),
+          sort: "date,asc",
+        });
+        const json = await fetchJson({ service: "ticketmaster", url: `${BASE}?${qs}`, limiter, label: "Ticketmaster event search" });
+        const parsed = SearchResponse.safeParse(json);
+        if (!parsed.success) throw new UpstreamError("ticketmaster", 200, "Ticketmaster returned an unexpected response shape");
+        meta.pagesFetched += 1;
+        const total = parsed.data.page?.totalElements ?? 0;
+        const span = daysBetween(from, to);
+        if (page === 0 && total > MAX_ITEMS && span >= 1) {
+          const mid = shiftDate(from, Math.floor(span / 2));
+          await window(from, mid);
+          await window(shiftDate(mid, 1), to);
+          return;
+        }
+        if (page === 0) meta.totalReported += total;
+        const items = parsed.data._embedded?.events ?? [];
+        for (const raw of items) {
+          const ev = normaliseTmEvent(raw, retrievedAt, describe);
+          if (ev) byId.set(ev.eventId, ev);
+          else meta.malformed += 1;
+        }
+        const totalPages = parsed.data.page?.totalPages ?? 0;
+        if (items.length < PAGE_SIZE || page + 1 >= totalPages) return;
+        if ((page + 2) * PAGE_SIZE > MAX_ITEMS) {
+          meta.truncated = true;
+          return;
+        }
       }
     }
-    return { events: out, ...meta };
+
+    await window(firstDay, lastDay);
+    const events = [...byId.values()].sort((a, b) => (a.localDate ?? "9999").localeCompare(b.localDate ?? "9999"));
+    return { events, ...meta };
   });
+}
+
+function daysBetween(a: string, b: string): number {
+  return Math.round((Date.UTC(+b.slice(0, 4), +b.slice(5, 7) - 1, +b.slice(8, 10)) - Date.UTC(+a.slice(0, 4), +a.slice(5, 7) - 1, +a.slice(8, 10))) / 86_400_000);
 }
 
 function shiftDate(d: string, days: number): string {

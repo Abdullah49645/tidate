@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { dayDiff, diffDates, normaliseName } from "@/lib/scoring/engine";
-import type { ArtistResolution, CompetingEvent, Contribution, DateScore, MatchStatus } from "@/lib/types";
+import type { ArtistResolution, CompetingEvent, Contribution, DateScore, MatchStatus, SharedTaste } from "@/lib/types";
 import { fmt2, fmtDay, fmtRelative, fmtShort } from "./format";
 import { Check, Chevron } from "./icons";
 
@@ -17,7 +17,7 @@ const MATCH_TEXT: Partial<Record<MatchStatus, string>> = {
 /** "Closer than 92% of acts nearby" from the relative affinity percentile. */
 export function closeness(rel: number | null): string | null {
   if (rel === null) return null;
-  const pct = Math.round(rel * 100);
+  const pct = Math.min(99, Math.round(rel * 100));
   if (pct >= 50) return `Closer than ${pct}% of acts nearby`;
   return `Further than ${100 - pct}% of acts nearby`;
 }
@@ -38,6 +38,19 @@ function reason(c: Contribution, e: CompetingEvent | undefined, resolutions: Rec
   return (s && MATCH_TEXT[s]) ?? "Not matched in Qloo";
 }
 
+function tasteLine(t: SharedTaste | undefined, artist: string): string | null {
+  if (!t || !t.checked) return null;
+  if (!t.shared.length) return `No genre or influence in common with ${artist} in Qloo. The overlap is in who listens, not how the music is labelled.`;
+  const genres = t.shared.filter((x) => x.kind === "genre").map((x) => x.name);
+  const infl = t.shared.filter((x) => x.kind === "influence").map((x) => x.name);
+  const parts = [genres.length ? `tagged ${list(genres)}` : null, infl.length ? `influenced by ${list(infl)}` : null].filter(Boolean);
+  return `Like ${artist}, ${parts.join(" and ")} in Qloo.`;
+}
+
+function list(xs: string[]) {
+  return xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
+}
+
 export function ShowList({
   date,
   dates,
@@ -45,6 +58,9 @@ export function ShowList({
   resolutions,
   ignored,
   onToggle,
+  artist,
+  taste = {},
+  onNeedTaste,
 }: {
   date: DateScore;
   dates: DateScore[];
@@ -52,6 +68,9 @@ export function ShowList({
   resolutions: Record<string, ArtistResolution>;
   ignored: Set<string>;
   onToggle: (eventId: string) => void;
+  artist: string;
+  taste?: Record<string, SharedTaste>;
+  onNeedTaste?: (entityIds: string[]) => void;
 }) {
   const [open, setOpen] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
@@ -62,6 +81,12 @@ export function ShowList({
   const others = dates.filter((d) => d.date !== date.date).sort((a, b) => a.date.localeCompare(b.date));
   const comparison = others.find((d) => d.date === compareTo);
   const diff = comparison ? diffDates(date, comparison).filter((r) => Math.abs(r.delta) > 1e-9).slice(0, 5) : [];
+
+  const wanted = visible.filter((c) => c.scored && c.qlooEntityId).map((c) => c.qlooEntityId!);
+  const wantedKey = wanted.join(",");
+  useEffect(() => {
+    if (wantedKey) onNeedTaste?.(wantedKey.split(","));
+  }, [wantedKey, onNeedTaste]);
 
   const hidden = [...ignored]
     .map((id) => eventById.get(id))
@@ -125,6 +150,8 @@ export function ShowList({
             const note = reason(c, e, resolutions);
             const share = c.scored && date.score > 0 ? (c.contribution ?? 0) / date.score : 0;
             const isOpen = open === c.eventId;
+            const shared = c.qlooEntityId ? taste[c.qlooEntityId] : undefined;
+            const sharedShort = shared?.checked && shared.shared.length ? `Shares ${list(shared.shared.slice(0, 2).map((x) => x.name))}` : null;
             return (
               <div key={c.eventId} className="row" role="listitem" data-open={isOpen}>
                 <div className="row-main">
@@ -137,6 +164,7 @@ export function ShowList({
                       {c.venueName}, {fmtShort(c.eventDate)}, {fmtRelative(c.daysApart).toLowerCase()}
                     </div>
                     {note && <div className="row-note">{note}</div>}
+                    {!note && sharedShort && <div className="row-taste">{sharedShort}</div>}
                   </button>
                   <div className="row-value">
                     {c.scored ? (
@@ -179,6 +207,7 @@ export function ShowList({
                         <small>{c.scored ? "Added to this date" : "Not in the score"}</small>
                       </div>
                     </dl>
+                    {c.scored && tasteLine(shared, artist) && <p className="taste-line">{tasteLine(shared, artist)}</p>}
                     <div className="foot">
                       {e && e.name !== c.performer ? `Listed as “${e.name}”. ` : ""}
                       {c.scored

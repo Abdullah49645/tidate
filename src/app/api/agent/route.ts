@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { runAgent } from "@/lib/agent/agent";
 import { getConfig } from "@/lib/config";
+import { compactResult, hydrateResult } from "@/lib/pipeline";
 import { ConfigurationError, getProvider } from "@/lib/providers";
 import { SCORING_VERSION } from "@/lib/scoring/engine";
 import type { AnalysisResult } from "@/lib/types";
@@ -20,7 +21,7 @@ const Body = z.object({
 
 function acceptPrevious(p: unknown, mode: "live" | "demo"): AnalysisResult | null {
   const shape = z.object({ version: z.literal(SCORING_VERSION), mode: z.literal(mode), dates: z.array(z.unknown()), events: z.array(z.unknown()) }).passthrough();
-  return shape.safeParse(p).success ? (p as AnalysisResult) : null;
+  return shape.safeParse(p).success ? hydrateResult(p as AnalysisResult) : null;
 }
 
 export async function POST(req: Request) {
@@ -49,7 +50,8 @@ export async function POST(req: Request) {
       previous: acceptPrevious(body.previous, body.mode),
       today: body.today ?? new Date().toISOString().slice(0, 10),
     });
-    return Response.json(run, { headers: { "cache-control": "no-store" } });
+    const analysis = run.analysis?.discover ? compactResult(run.analysis) : run.analysis;
+    return Response.json({ ...run, analysis }, { headers: { "cache-control": "no-store" } });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Agent failed";
     return Response.json({ error: `The agent could not complete: ${message}` }, { status: 502 });
