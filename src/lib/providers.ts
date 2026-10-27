@@ -24,6 +24,7 @@ export function createLiveProvider(): DataProvider {
     searchArtists: (name) => cachedSearchArtists(name.trim()),
     affinities: (target, ids) => qloo.affinities(target, ids),
     entityTags: (ids) => qloo.entityTags(ids),
+    recommendArtists: (target, market) => qloo.recommendArtists(target, { locationQuery: market.label.replace(/,.*$/, ""), take: 40 }),
     fanHeatmap: (target, market, radiusMiles) => qloo.heatmap(target, market.lat, market.lng, radiusMiles * 1609.344),
   };
 }

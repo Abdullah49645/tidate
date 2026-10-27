@@ -27,6 +27,14 @@ const searchCache = new TtlCache<ArtistCandidate[]>(24 * 3600 * 1000);
 const affinityCache = new TtlCache<AffinitySignal>(24 * 3600 * 1000, 20_000);
 const tagCache = new TtlCache<TasteTag[]>(7 * 24 * 3600 * 1000, 20_000);
 const heatCache = new TtlCache<HeatCell[]>(24 * 3600 * 1000, 500);
+const recCache = new TtlCache<RecommendedArtist[]>(24 * 3600 * 1000, 500);
+
+export interface RecommendedArtist {
+  entityId: string;
+  name: string;
+  popularity: number | null;
+  affinity: number | null;
+}
 
 const EntityTags = z.object({
   entity_id: z.string(),
@@ -235,6 +243,29 @@ export class QlooClient {
       return parsed.data.results.heatmap
         .filter((c) => typeof c.query.affinity === "number")
         .map((c) => ({ lat: c.location.latitude, lng: c.location.longitude, geohash: c.location.geohash, affinity: c.query.affinity as number }));
+    });
+  }
+
+  /**
+   * Artists whose audiences sit closest to the target's, optionally weighted
+   * towards a location (GET /v2/insights filter.type=urn:entity:artist with the
+   * target as signal and signal.location.query).
+   */
+  async recommendArtists(targetEntityId: string, opts: { locationQuery?: string; take?: number } = {}): Promise<RecommendedArtist[]> {
+    const take = Math.min(MAX_TAKE, opts.take ?? 40);
+    const key = `${targetEntityId}|${opts.locationQuery ?? ""}|${take}`;
+    return recCache.getOrLoad(key, async () => {
+      const qs = new URLSearchParams({ "filter.type": ARTIST, "signal.interests.entities": targetEntityId, take: String(take) });
+      if (opts.locationQuery) qs.set("signal.location.query", opts.locationQuery);
+      const json = await fetchJson({ service: "qloo", url: `${this.baseUrl}/v2/insights?${qs}`, headers: this.headers, limiter, retries: 3, label: "Qloo insights (recommendations)" });
+      const parsed = InsightsResponse.safeParse(json);
+      if (!parsed.success) throw new UpstreamError("qloo", 200, "Qloo insights returned an unexpected response shape");
+      const out: RecommendedArtist[] = [];
+      for (const raw of parsed.data.results?.entities ?? []) {
+        const e = parseEntity(raw);
+        if (e && e.entityId !== targetEntityId) out.push({ entityId: e.entityId, name: e.name, popularity: e.popularity, affinity: e.affinity });
+      }
+      return out;
     });
   }
 }

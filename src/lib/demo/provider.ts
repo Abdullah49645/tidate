@@ -39,6 +39,10 @@ const ARTISTS: DemoArtist[] = [
   { id: "demo-quiet-harbor", name: "Quiet Harbor", popularity: 0.3, affinity: null, genre: "Ambient" },
   { id: "demo-echo-a", name: "Echo", popularity: 0.41, affinity: 0.5, genre: "Electronic" },
   { id: "demo-echo-b", name: "Echo", popularity: 0.38, affinity: 0.2, genre: "Hard Rock" },
+  // Not on the fictional calendar: candidates for a support slot.
+  { id: "demo-wren-lowlights", name: "Wren & the Lowlights", popularity: 0.42, affinity: 0.9, genre: "Indie Pop" },
+  { id: "demo-sable-harbor", name: "Sable Harbor", popularity: 0.36, affinity: 0.86, genre: "Dream Pop" },
+  { id: "demo-tin-gardens", name: "The Tin Gardens", popularity: 0.77, affinity: 0.84, genre: "Indie Rock" },
 ];
 
 /** Fictional Qloo-style tags: genres plus invented influences. */
@@ -57,6 +61,9 @@ const TAGS: Record<string, [genres: string[], influences: string[]]> = {
   "demo-dj-kestrel": [["Electronic", "Techno"], []],
   "demo-echo-a": [["Electronic", "Dream Pop"], []],
   "demo-echo-b": [["Hard Rock"], []],
+  "demo-wren-lowlights": [["Indie Pop", "Bedroom Pop"], ["Marlowe Vance"]],
+  "demo-sable-harbor": [["Dream Pop", "Shoegaze"], []],
+  "demo-tin-gardens": [["Indie Rock", "Dream Pop"], []],
 };
 
 function demoTags(id: string): TasteTag[] | undefined {
@@ -201,6 +208,12 @@ export function createDemoProvider(opts: { revision?: number } = {}): DataProvid
         if (t) out[id] = t;
       }
       return out;
+    },
+    async recommendArtists(targetEntityId) {
+      if (targetEntityId !== "demo-juniper-static") return [];
+      return ARTISTS.filter((a) => a.id !== targetEntityId && a.affinity !== null)
+        .sort((a, b) => (b.affinity ?? 0) - (a.affinity ?? 0))
+        .map((a) => ({ entityId: a.id, name: a.name, popularity: a.popularity, affinity: a.affinity }));
     },
     async fanHeatmap(targetEntityId, market) {
       return targetEntityId === "demo-juniper-static" ? demoHeatmap(market.lat, market.lng) : [];

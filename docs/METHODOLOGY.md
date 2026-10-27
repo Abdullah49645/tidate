@@ -148,6 +148,29 @@ how the UI makes Qloo's contribution visible; the evaluation tests it.
 - Neither feeds the score: the evaluation was run on the affinity-based score only,
   and neither signal has been tested against outcomes.
 
+## Run planning (display of the same scores)
+
+Each city's nights are scored independently. Scores are not comparable across
+cities (each city's acts are ranked against its own pool), so a night's cost is its
+rank position within its city: 0 for the best night, 1 for the worst. The planner
+chooses one night per city, every pair at least the chosen number of days apart,
+minimising total cost, by exact branch-and-bound search (tested against brute force).
+Ties have no special handling beyond date order. Travel, routing and costs are not
+modelled. The same search over the headcount ranks gives the comparison route.
+
+## Support acts and venues (display only)
+
+- **Support acts**: Qloo `/v2/insights` with `filter.type=urn:entity:artist`, the
+  target as signal and `signal.location.query=<city>`, which re-weights the
+  recommendations towards the market (Nashville, Kirk Franklin: CeCe Winans, Israel
+  Houghton, Fred Hammond…). Acts already playing within the chosen date's window
+  are left out and named; acts more popular than the headliner are listed last.
+  Qloo can't tell who is touring or available.
+- **Venues**: every venue Ticketmaster lists music at in the window, ranked by the
+  heatmap affinity of its nearest cell (in 5-point bands), then by the clash-score
+  contributions on the chosen date from shows within 1 km; venues already booked
+  that night go last. Records with the same venue name are merged.
+
 ## Watches
 
 A watch stores the request (with the artist pinned to the Qloo entity the first

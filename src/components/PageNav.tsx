@@ -12,10 +12,13 @@ export function PageNav() {
           <Logo />
         </Link>
         <span className="nav-spacer" />
+        <Link className="nav-link" href="/tour">
+          Plan a run
+        </Link>
         <Link className="nav-link" href="/watch">
           Watching
         </Link>
-        <Link className="nav-link" href="/">
+        <Link className="nav-link wide-nav" href="/">
           New analysis
         </Link>
       </div>

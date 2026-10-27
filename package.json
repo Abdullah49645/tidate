@@ -13,7 +13,8 @@
     "validate:live": "node --env-file-if-exists=.env.local --import tsx scripts/validate-live.ts",
     "eval:collect": "node --env-file-if-exists=.env.local --import tsx scripts/eval-collect.ts",
     "eval:run": "node --import tsx scripts/eval-run.ts",
-    "check": "npm run typecheck && npm run lint && npm test && npm run build"
+    "check": "npm run typecheck && npm run lint && npm test && npm run build",
+    "warm:cache": "node --env-file-if-exists=.env.local --import tsx scripts/warm-cache.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.85",

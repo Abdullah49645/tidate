@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { MARKETS } from "@/lib/markets";
 import { MAX_DISCOVER_NIGHTS, MAX_DISCOVER_SPAN_DAYS, NIGHTS, candidateNights, type ArtistCandidate, type MatchStatus, type NightsId } from "@/lib/types";
@@ -281,6 +282,9 @@ export function CommandBar({
         <button type="button" className="btn-plain" onClick={onAsk}>
           Ask in plain language
         </button>
+        <Link className="btn-plain" href="/tour">
+          Plan a run across cities
+        </Link>
       </div>
     </>
   );

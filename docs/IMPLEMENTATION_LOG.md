@@ -2,6 +2,23 @@
 
 Concise record so work can resume without context. Newest first.
 
+## 2026-10-27
+
+Done
+- Support-act ideas (Qloo location-weighted artist recommendations; /api/openers).
+- Venue picks from the fan map (fan concentration, 1 km pull, booked-last).
+- Cache warming: `npm run warm:cache` and leftover cron time; live test: Austin,
+  201 performers, 140 searched in 20 s, second pass found them cached.
+- Share link (re-runs the analysis from URL parameters).
+- Run planner `/tour`: up to 4 cities; live 3-city run took ~145 s cold; skip nights
+  re-plans instantly; holiday-quiet caution per stop.
+- Phone nav: secondary links hidden under 600 px; run planner linked under the form.
+- Tests: 92 passing.
+
+Next
+1. Push, deploy on Vercel with Upstash + CRON_SECRET, start a live watch.
+2. `vercel env pull .env.local && npm run warm:cache` before judging.
+
 ## 2026-10-26 (later)
 
 **State:** renamed to **Tidate** (tide + date); still local only.

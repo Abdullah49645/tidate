@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { affinityNear } from "@/lib/context";
+import { affinityNear, rankVenues } from "@/lib/context";
 import type { CompetingEvent, DateScore, HeatCell } from "@/lib/types";
 import { fmtShort } from "./format";
 
@@ -124,6 +124,11 @@ export function FanMap({
       .filter((g) => g.x >= 0 && g.x <= W && g.y >= 0 && g.y <= geo.H);
   }, [current, geo, date, events]);
 
+  const picks = useMemo(() => {
+    if (!current || !geo) return [];
+    return rankVenues(events, date, current.cells).map((v, i) => ({ ...v, letter: String.fromCharCode(65 + i), x: geo.X(v.lng), y: geo.Y(v.lat) }));
+  }, [current, geo, date, events]);
+
   if (error) {
     return <p className="fanmap-empty">Qloo didn&apos;t return a heatmap for {artist} around {marketLabel}, so there&apos;s no map to show. The scores above don&apos;t depend on it.</p>;
   }
@@ -170,6 +175,13 @@ export function FanMap({
             <path d={`M 0 -4 V 0 M ${mile * scaleMiles} -4 V 0`} />
           </g>
         </svg>
+        {picks
+          .filter((p) => p.x >= 0 && p.x <= W && p.y >= 0 && p.y <= geo.H)
+          .map((p, i) => (
+            <span key={p.key} className="pin pick" aria-hidden style={{ left: `${(p.x / W) * 100}%`, top: `${(p.y / geo.H) * 100}%`, ["--i" as string]: i + 6 }}>
+              {p.letter}
+            </span>
+          ))}
         {pins
           .map((p, i) => ({ ...p, n: i + 1 }))
           .reverse()
@@ -193,6 +205,9 @@ export function FanMap({
           <span className="key-pin">
             <i>1</i> Venues pulling most on {fmtShort(date.date)}
           </span>
+          <span className="key-pick">
+            <i>A</i> Venues in {artist}&apos;s strongest areas
+          </span>
           <span className="key-centre">
             <i>+</i> City centre
           </span>
@@ -204,12 +219,40 @@ export function FanMap({
                 <span>
                   <i className="pin-n">{i + 1}</i>
                   <b>{p.name}</b>
-                  <span>{p.acts.join(", ")}</span>
+                  <span>
+                    {p.acts.slice(0, 4).join(", ")}
+                    {p.acts.length > 4 ? ` and ${p.acts.length - 4} more` : ""}
+                  </span>
                 </span>
                 <small>{p.local === null ? "Outside Qloo's mapped areas" : `In the ${topShare(p.local)} of mapped areas for ${artist}'s audience`}</small>
               </li>
             ))}
           </ul>
+        )}
+        {picks.length > 0 && (
+          <>
+            <h3 className="sub-title">Where to play.</h3>
+            <ul className="fanmap-venues picks">
+              {picks.map((p) => (
+                <li key={p.key}>
+                  <span>
+                    <i className="pin-n pick">{p.letter}</i>
+                    <b>{p.name}</b>
+                    <span>
+                      {p.bookedBy ? `Booked on ${fmtShort(date.date)} (${p.bookedBy}). ` : ""}
+                      {p.showsNearby ? `${p.showsNearby} competing ${p.showsNearby === 1 ? "show" : "shows"} within 1 km around ${fmtShort(date.date)}, pull ${p.pullNearby.toFixed(2)}` : `No scored competition within 1 km around ${fmtShort(date.date)}`}
+                    </span>
+                  </span>
+                  <small>{`In the ${topShare(p.fans)} of mapped areas for ${artist}'s audience`}</small>
+                </li>
+              ))}
+            </ul>
+            <p className="openers-foot">
+              Venues Ticketmaster lists music at, ranked by how concentrated {artist}&apos;s audience is around them, then by how little competing shows within 1 km pull.
+              Venues already booked that night come last. Ticketmaster
+              doesn&apos;t publish capacities, so check the room fits the draw.
+            </p>
+          </>
         )}
       </div>
     </>

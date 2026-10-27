@@ -116,7 +116,8 @@ Keep this list current; do not claim anything from the right column.
 | End-to-end live analysis in the browser and via the API | Any effect on ticket sales (no outcome data exists) |
 | Agent with real Gemini, tool calling, key and model rotation | |
 | Evaluation E1–E3 run on live data; results in docs/EVALUATION.md | |
-| 85 automated tests, typecheck, lint, production build | |
+| 92 automated tests, typecheck, lint, production build | |
 | Night search, provisional ranking, shared-taste tags and fan map against live Qloo and Ticketmaster (Nashville, Oct 26) | |
+| Support acts, venue picks, share link and the three-city run planner against live data (Nashville, Atlanta, Chicago; Oct 27) | Cache warming against a real Upstash database (tested with an in-memory store and live Qloo/Ticketmaster) |
 | Watches: create, check, diff and model-written summary locally (demo and live, memory store); Upstash client against a mocked REST API | Watches on Upstash and the daily cron on a real deployment |
 | MCP JSON-RPC calls against the handler (tests) | |

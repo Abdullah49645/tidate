@@ -1,7 +1,7 @@
 import type { DataProvider } from "../pipeline";
 import { normaliseName } from "../scoring/engine";
 import type { ArtistCandidate } from "../types";
-import type { Kv } from "./kv";
+import type { Kv } from "./kv-core";
 
 const TTL_SECONDS = 30 * 24 * 3600;
 const key = (name: string) => `tidate:search:${normaliseName(name)}`;

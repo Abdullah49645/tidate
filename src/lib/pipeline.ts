@@ -55,6 +55,8 @@ export interface DataProvider {
   provisionalEveryMs?: number;
   /** Qloo tags per entity (context only; not used in scoring). */
   entityTags?(entityIds: string[]): Promise<Record<string, TasteTag[]>>;
+  /** Artists whose audiences are closest to the target's, weighted to the market (context only). */
+  recommendArtists?(targetEntityId: string, market: Market): Promise<import("./qloo/client").RecommendedArtist[]>;
   /** Qloo heatmap for the target artist around a market (context only). */
   fanHeatmap?(targetEntityId: string, market: Market, radiusMiles: number): Promise<HeatCell[]>;
 }
@@ -110,7 +112,7 @@ export function splitBill(name: string): string[] {
   return parts.length >= 2 ? [...new Set(parts)] : [];
 }
 
-function withTitlePerformer(e: import("./types").CompetingEvent): import("./types").CompetingEvent {
+export function withTitlePerformer(e: import("./types").CompetingEvent): import("./types").CompetingEvent {
   if (e.performers.length > 0) return e;
   const name = performerFromTitle(e.name);
   return name ? { ...e, performers: [{ attractionId: null, name, genre: e.genre, fromTitle: true }] } : e;

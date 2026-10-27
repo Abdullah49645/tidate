@@ -61,6 +61,20 @@ Repository: https://github.com/Abdullah49645/tidate
 - **Fan map**: Qloo's heatmap of where your artist's audience is concentrated in the
   market, with the venues pulling most on the chosen night pinned and placed in it.
   The tags and the map are context only; neither changes a score.
+- **Who could open**: the artists Qloo places closest to your audience around the
+  market (location-weighted recommendations), leaving out anyone already playing
+  nearby that fortnight, with the genres they share with you.
+- **Where to play**: venues Ticketmaster lists music at, ranked by how concentrated
+  your audience is around them (Qloo heatmap) and how little competing shows within
+  1 km pull; venues already booked that night go last. No capacity data exists in
+  the API, so size isn't considered.
+- **Plan a run** (`/tour`): up to four cities and a date range. Each city's nights
+  are searched, then one night per city is chosen, at least N days apart, with the
+  lowest total within-city rank (exact branch-and-bound search). Shows why a city
+  didn't get its best night, compares with the headcount's routing, and lets you
+  skip nights (a holiday) and re-plan instantly.
+- **Share**: "Copy a link to this analysis" reopens and re-runs it with that day's
+  listings.
 - **Watch**: one click turns a result into a watch. It is re-checked once a day (and
   on demand) with the same engine, and a watch page records what changed: new or
   cancelled shows near your dates, a show that moved, a new best night, a change in
@@ -91,8 +105,10 @@ src/lib/mcp/server.ts       MCP tool definitions
 src/lib/demo/provider.ts    fictional demo scenario
 src/lib/watch/              watches: store (Upstash REST or memory), snapshots and diffs, alerts
 src/lib/context.ts          shared-taste tags and fan map (display only)
+src/lib/tour.ts             one-night-per-city run planner
 src/app/api/*               analyze (NDJSON stream), agent, artists, mcp, status, taste,
-                            fanmap, watch (create / get / check / delete / cron)
+                            fanmap, openers, watch (create / get / check / delete / cron)
+src/app/tour, src/app/watch run planner and watch pages
 src/components/             workstation UI
 scripts/                    live API validation and evaluation
 tests/                      unit, pipeline, agent, MCP tests (no network)
@@ -139,6 +155,7 @@ npm run check          # all of the above
 npm run validate:live  # exercises the real Qloo and Ticketmaster operations
 npm run eval:collect   # collects evaluation data (live keys required)
 npm run eval:run       # runs the pre-registered experiments
+npm run warm:cache     # pre-fills the shared Qloo match cache (Upstash) for all markets
 ```
 
 `validate:live` and `eval:collect` write raw API responses to `.validation/` and
@@ -160,6 +177,12 @@ npm run eval:run       # runs the pre-registered experiments
 crons and may run them any time within the scheduled hour). Each run checks the
 watches not checked in the last 20 hours, oldest first, within the function's time
 limit; any not reached are picked up the next day. A repeated delivery is harmless.
+Time left over warms the shared match cache for one market a day.
+
+**Before judging:** run `vercel env pull .env.local` and then `npm run warm:cache`
+(about 25–30 minutes for all 14 markets, or name a few: `npm run warm:cache --
+nashville chicago`). First live analyses then read most performer matches from the
+cache instead of searching each act, so they finish in seconds rather than ~30 s.
 
 API routes declare `maxDuration = 60`; a live analysis typically needs several
 seconds because every competing performer is matched in Qloo (results are cached

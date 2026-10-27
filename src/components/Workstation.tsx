@@ -15,6 +15,7 @@ import { DateCards } from "./DateCards";
 import { Details } from "./Details";
 import { FanMap } from "./FanMap";
 import { NightCalendar } from "./NightCalendar";
+import { Openers } from "./Openers";
 import { Provisional } from "./Provisional";
 import { ShowList } from "./ShowList";
 import { Timeline } from "./Timeline";
@@ -22,6 +23,7 @@ import { Versus } from "./Versus";
 import { fmt2, fmtDay, fmtLong, fmtShort, humanizeDates } from "./format";
 import { Alert, Check, Exclaim } from "./icons";
 import { Logo } from "./Logo";
+import { ShareLink } from "./ShareLink";
 import { WatchButton } from "./WatchButton";
 import { loadLocalWatches } from "./watchlist";
 
@@ -324,6 +326,9 @@ export function Workstation() {
             <Logo />
           </Link>
           <span className="nav-spacer" />
+          <Link className="nav-link wide-nav" href="/tour">
+            Plan a run
+          </Link>
           {localWatches > 0 && (
             <Link className="nav-link" href="/watch">
               Watching
@@ -530,6 +535,7 @@ export function Workstation() {
                       </div>
                     </dl>
                     {!noEvidence && <WatchButton key={result.generatedAt} result={result} />}
+                    <ShareLink result={result} />
                   </div>
                 </div>
               )}
@@ -614,6 +620,26 @@ export function Workstation() {
                   ignored={ignored}
                   onToggle={toggle}
                   artist={artist}
+                  taste={tasteRows}
+                  onNeedTaste={needTaste}
+                />
+              </section>
+            )}
+
+            {selectedDate && targetId && (
+              <section className="section" aria-labelledby="openers-title">
+                <h2 className="section-title" id="openers-title">
+                  Who could open for {artist}.
+                </h2>
+                <p className="section-sub">Acts whose audiences Qloo places closest to {artist}&apos;s around {result.market.label}, and who aren&apos;t already competing for them that fortnight.</p>
+                <Openers
+                  mode={result.mode}
+                  targetId={targetId}
+                  artist={artist}
+                  targetPopularity={result.target.entity?.popularity ?? null}
+                  marketId={result.market.id}
+                  marketLabel={result.market.label}
+                  date={selectedDate}
                   taste={tasteRows}
                   onNeedTaste={needTaste}
                 />
