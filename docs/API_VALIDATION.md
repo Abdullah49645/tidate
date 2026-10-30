@@ -52,12 +52,12 @@ Second run with the shared search cache: 11.8 s, all performers checked.
 
 ## Gemini (agent)
 
-| Key | Result |
+| Finding | Detail |
 | --- | --- |
-| #1 | 403 PERMISSION_DENIED: Generative Language API blocked for that key's project |
-| #2, #3 | `gemini-3.5-flash` works, including tool calling. `gemini-2.5-flash` is no longer available to new keys; `gemini-3.8-flash` and `gemini-flash-latest` returned 503 (overloaded) during testing |
+| Model availability | `gemini-3.5-flash` works, including tool calling. `gemini-2.5-flash` is not available to newly created keys; `gemini-3.8-flash` and `gemini-flash-latest` returned 503 (overloaded) during testing |
+| Refused keys | A key whose project has the Generative Language API disabled returns 403 PERMISSION_DENIED |
 
-The agent tries every key for each model in order (`gemini-3.5-flash`,
+The agent tries every configured key for each model in order (`gemini-3.5-flash`,
 `gemini-3.8-flash`, `gemini-flash-latest`) and moves on after 401/403/404/429/5xx.
-Observed: key #1 refused, key #2 answered; full demo question with five tool
-calls in 15.6 s.
+With one refused key and one working key, a full demo question with five tool
+calls completed in 15.6 s.

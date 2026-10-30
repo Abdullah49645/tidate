@@ -44,3 +44,6 @@ next-env.d.ts
 # local API responses (Qloo data must never be committed)
 /.validation/
 /.eval-data/
+
+# Written by `next dev`
+AGENTS.md

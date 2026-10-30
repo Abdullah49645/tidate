@@ -1,242 +1,414 @@
-# Tidate
+<p align="center">
+  <img src="src/app/icon.svg" width="88" alt="Tidate logo">
+</p>
 
-**Know which nights your crowd is already spoken for.**
+<h1 align="center">Tidate</h1>
 
-Tidate helps concert promoters, talent buyers and artist teams choose between the
-dates they can hold, or find the quietest nights in a range. For each candidate date it finds every music event within two
-weeks in the same market (Ticketmaster), asks Qloo how strongly each competing act's
-audience overlaps with your artist's, and ranks your dates by that pull, with every
-number traceable to a specific show, Qloo signal and timing weight.
+<p align="center">
+  <strong>Pick the night your fans are free.</strong><br>
+  Concert dates ranked by how much nearby shows pull on your artist's audience,<br>
+  using Ticketmaster listings and Qloo's taste graph.
+</p>
 
-A plain calendar says *how many* shows are nearby. Tidate says *which ones matter
-to your audience*: a night with three metal and country shows can be safer for an
-indie-pop act than a night with one same-genre headliner across town.
+<p align="center">
+  <a href="#features">Features</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#the-scoring-model">Scoring model</a> ·
+  <a href="#evaluation">Evaluation</a> ·
+  <a href="#agent-and-mcp-server">Agent and MCP</a> ·
+  <a href="#getting-started">Getting started</a>
+</p>
 
-Built for the [Qloo Agentic Hackathon 2026](https://qloo.devpost.com/).
-Repository: https://github.com/Abdullah49645/tidate
+<p align="center">
+  <img src="docs/screenshots/verdict.jpg" alt="Tidate recommending Friday, November 27 for Kirk Franklin in Nashville, with robustness, headcount comparison and coverage" width="100%">
+</p>
 
 ---
 
+## Overview
+
+A promoter holding three possible dates for a show usually checks the local
+calendar and picks the quietest one. A headcount treats every show the same, but
+a metal festival doesn't take fans from a gospel concert, while one same-genre
+headliner across town can.
+
+Tidate weighs every music event near each candidate date by how close its
+audience is to your artist's, according to Qloo. It ranks the dates by that pull,
+shows the plain headcount beside it so you can see when the two disagree, and
+breaks every score down into the shows, signals and timing behind it.
+
+**Who it is for:** concert promoters, talent buyers, agents and artist managers
+choosing when to play a market.
+
+**What it answers:**
+
+- Which of the dates I can hold is least crowded for this artist's audience?
+- Which nights in the next few weeks are quietest, and which should I avoid?
+- Across several cities, which night in each makes the best run?
+- Which acts could open, and which venues sit where the fans are?
+- Has anything changed since I last looked?
+
+Live data comes from the Ticketmaster Discovery API and the Qloo API. Without
+keys, Tidate runs on a fictional demo scenario that is labelled as fictional
+everywhere it appears.
+
+## Features
+
+### Compare the dates you can hold
+
+Enter an artist, a city and up to four dates. Tidate searches Ticketmaster for
+every music event within two weeks of each date, matches each performer to Qloo,
+fetches each act's affinity with your artist, and scores the dates. The result
+names the best night, says whether the ranking would survive the acts it could
+not match, and shows what a plain headcount would have picked.
+
+<img src="docs/screenshots/dates.jpg" alt="Three date cards with clash scores and a timeline of nearby shows for the selected date" width="100%">
+
+### See where Qloo changes the decision
+
+The same shows ranked two ways: by headcount, and weighted by audience overlap.
+When the lines cross, Qloo changed the answer, and a short note built from the
+data explains why.
+
+<img src="docs/screenshots/versus.jpg" alt="Slope chart: the headcount picks Dec 10, Qloo ranks Dec 10 last and picks Nov 27" width="100%">
+
+### Every number explained
+
+Each show's contribution is its closeness to your audience, times its popularity,
+times a timing weight, all shown and multiplied out. Shared Qloo genres and
+influences explain *why* two audiences overlap, and say so plainly when they share
+none. Untick a show you expect to move and the ranking updates in the browser.
+
+<img src="docs/screenshots/shows.jpg" alt="Show list for Dec 10 with Jodeci expanded: affinity 0.88, closer than 99% of acts nearby, popularity, timing and contribution" width="100%">
+
+### Find a night
+
+No dates yet? Give a range of up to 70 days and the nights of the week. Every
+matching night is scored and shaded on a calendar: darker nights carry more pull,
+the best three are numbered, and the headcount's pick is underlined. A night that
+is quiet for every act, like a holiday, is flagged rather than recommended blindly,
+and skipping it re-ranks instantly. While performers are still being matched, a
+provisional ranking streams into the progress panel.
+
+<img src="docs/screenshots/calendar.jpg" alt="Night calendar for November and December with the best three nights numbered and Christmas skipped" width="100%">
+
+### Plan a run across cities
+
+Pick up to four cities and a range. Tidate searches each city's nights, then
+chooses one night per city so that no two shows are closer than the gap you set
+and the run as a whole carries the least pull. It explains each trade-off ("its
+best night is the night Atlanta gets") and shows the route a headcount would take.
+
+<img src="docs/screenshots/tour.jpg" alt="Run plan for Nashville, Chicago and Atlanta with ranks, trade-off notes and the headcount's alternative route" width="100%">
+
+### Who could open, and where to play
+
+Qloo's location-weighted recommendations suggest support acts whose fans overlap
+the headliner's, leaving out anyone already competing nearby. Qloo's heatmap shows
+where the artist's audience is concentrated, with the venues pulling hardest on the
+chosen night pinned on top and venues ranked by fan concentration and nearby
+competition.
+
+<img src="docs/screenshots/openers.jpg" alt="Support-act ideas for Kirk Franklin in Nashville with popularity and shared genres" width="100%">
+
+<img src="docs/screenshots/fanmap.jpg" alt="Heatmap of Kirk Franklin's audience around Nashville with competing venues pinned and venue suggestions" width="100%">
+
+### Watch for changes
+
+One click turns a result into a watch. It is re-checked every day, and on demand,
+with the same engine. The watch page records what changed: new or cancelled shows
+near your dates, a show that moved, a new best night, a change in robustness.
+Notable changes get a two-sentence summary from the language model, which is
+discarded if it contains any number that isn't in the change list.
+
+<img src="docs/screenshots/watch-history.jpg" alt="Watch history showing a new listing, a cancellation and a changed best night (demo data)" width="100%">
+
+<sub>Shown with the fictional demo data, which announces one show and cancels another after the first check.</sub>
+
+### Ask in plain language
+
+An agent answers questions like "I can hold Nov 27, Dec 4 or Dec 10 for Kirk
+Franklin in Nashville. Which is least crowded for his fans?" It calls the same
+tools as the page, never produces a number itself, and its answer is checked
+against the engine's recommendation before it is shown.
+
+<img src="docs/screenshots/agent.jpg" alt="The Ask Tidate panel answering which of three dates is least crowded, with the tools it used" width="100%">
+
+### Light, dark and phone
+
+<p>
+  <img src="docs/screenshots/landing.jpg" alt="Landing page with the command bar" width="70%">
+  <img src="docs/screenshots/phone-dark.jpg" alt="The verdict on a phone in dark mode" width="26%">
+</p>
+
 ## How it works
 
-```
- request (artist, market, 1–4 dates)
-        │
-        ▼
- ┌──────────────┐   ┌──────────────────────┐   ┌──────────────────────┐
- │ validate     │──▶│ resolve artist (Qloo │──▶│ search events        │
- │ (zod)        │   │ /search)             │   │ (Ticketmaster)       │
- └──────────────┘   └──────────────────────┘   └──────────┬───────────┘
-                                                          ▼
- ┌──────────────┐   ┌──────────────────────┐   ┌──────────────────────┐
- │ verify &     │◀──│ deterministic engine │◀──│ match performers +   │
- │ explain      │   │ (clash score, count  │   │ Qloo affinity        │
- └──────┬───────┘   │ baseline, bounds)    │   │ (/v2/insights)       │
-        │           └──────────────────────┘   └──────────────────────┘
-        ▼
-  web UI  ·  agent tools  ·  MCP server   (all share the same pipeline)
+```mermaid
+flowchart LR
+    A[Request<br/>artist, city, dates or range] --> B[Validate<br/>zod]
+    B --> C[Resolve artist<br/>Qloo /search]
+    C --> D[Music events<br/>Ticketmaster Discovery]
+    D --> E[Match performers<br/>Qloo /search, cached]
+    E --> F[Affinity and popularity<br/>Qloo /v2/insights]
+    F --> G[Deterministic engine<br/>clash score, headcount,<br/>robustness]
+    G --> H[Verify<br/>breakdowns sum,<br/>evidence reported]
+    H --> I[Web app]
+    H --> J[Agent tools]
+    H --> K[MCP server]
+    H --> L[Watches]
 ```
 
-- **Score**: `C(d) = Σ closeness × popularity × timing weight` over nearby shows,
-  where closeness is each act's Qloo affinity ranked against the other acts
-  playing nearby. See [docs/METHODOLOGY.md](docs/METHODOLOGY.md) and the live
-  findings behind it in [docs/API_VALIDATION.md](docs/API_VALIDATION.md).
-- **Count baseline**: the same shows and timing weights, each counted alike, shown
-  side by side so you can see whether Qloo changes the answer.
-- **Evidence**: unmatched performers, missing affinity and imputed popularity are
-  flagged per show; evidence quality and worst-case robustness are reported
-  separately from the score.
-- **What-if**: untick any show to re-rank instantly (the engine runs in the
-  browser too).
-- **Find a night**: instead of fixed dates, give a range (up to 70 days) and the
-  nights of the week. Every matching night (up to 40) is scored by the same engine
-  and shown on a shaded calendar with the best three numbered and the headcount's
-  pick marked. Nights you can't use (a holiday, a dark venue) can be skipped and
-  the ranking updates.
-- **Provisional ranking**: while performers are still being matched, the ranking
-  from the lookups finished so far streams into the progress panel.
-- **Why the overlap**: each show lists the Qloo genres and influences it shares with
-  your artist ("Like Kirk Franklin, tagged Rhythm & Blues and Soul"), or says
-  plainly that it shares none, which means the overlap is in listeners, not labels.
-- **Fan map**: Qloo's heatmap of where your artist's audience is concentrated in the
-  market, with the venues pulling most on the chosen night pinned and placed in it.
-  The tags and the map are context only; neither changes a score.
-- **Who could open**: the artists Qloo places closest to your audience around the
-  market (location-weighted recommendations), leaving out anyone already playing
-  nearby that fortnight, with the genres they share with you.
-- **Where to play**: venues Ticketmaster lists music at, ranked by how concentrated
-  your audience is around them (Qloo heatmap) and how little competing shows within
-  1 km pull; venues already booked that night go last. No capacity data exists in
-  the API, so size isn't considered.
-- **Plan a run** (`/tour`): up to four cities and a date range. Each city's nights
-  are searched, then one night per city is chosen, at least N days apart, with the
-  lowest total within-city rank (exact branch-and-bound search). Shows why a city
-  didn't get its best night, compares with the headcount's routing, and lets you
-  skip nights (a holiday) and re-plan instantly.
-- **Share**: "Copy a link to this analysis" reopens and re-runs it with that day's
-  listings.
-- **Watch**: one click turns a result into a watch. It is re-checked once a day (and
-  on demand) with the same engine, and a watch page records what changed: new or
-  cancelled shows near your dates, a show that moved, a new best night, a change in
-  robustness. Each notable change gets a two-sentence summary written by the model
-  from the change list and rejected if it mentions any number not in that list.
+One pipeline serves the web app, the agent, the MCP server and watches, so every
+surface gives the same answer for the same data.
 
-### Three ways in
+1. **Validate.** One to four real dates, or a range with 2–40 matching nights; a
+   supported market.
+2. **Resolve the artist** in Qloo. Anything other than a confident match stops and
+   asks which artist is meant.
+3. **Fetch events** from Ticketmaster within the chosen radius, 14 days either side
+   of the dates. Windows over Ticketmaster's 1,000-result paging limit are split
+   and merged.
+4. **Exclude**, with a recorded reason: the artist's own shows, cancelled and
+   postponed events, TBA dates and duplicate listings.
+5. **Match performers** to Qloo with a strict policy: exact names only; ambiguous,
+   weak and missing matches stay unscored and are bounded instead. Lookups run in
+   order of their weight on the dates, under a time limit, with a shared cache so
+   later runs reach further.
+6. **Fetch affinity** for every matched act, with the artist as Qloo's signal.
+7. **Score** deterministically and **verify** that every breakdown sums to its total.
 
-1. **Hold sheet (web form)**: runs the pipeline step by step with live progress.
-2. **Agent**: ask in plain language ("I can hold May 9, 16 or 23 for Clairo in
-   Chicago…" or "find Clairo a Saturday in March"). An AI SDK `ToolLoopAgent` calls
-   `find_artist`, `analyze_candidate_dates`, `find_best_nights`, `explain_date`,
-   `compare_dates`, `what_if_exclude` and `watch_latest` ("keep an eye on these").
-   It never produces numbers itself, and its final answer is checked against the
-   engine's recommendation.
-3. **MCP server** at `/api/mcp` (Streamable HTTP): tools `score_candidate_dates`,
-   `find_best_nights`, `find_artist`, `list_markets` for any MCP client.
-
-## Project layout
+## The scoring model
 
 ```
-src/lib/scoring/engine.ts   deterministic scoring, baseline, robustness, counterfactuals
-src/lib/pipeline.ts         shared orchestration (live and demo providers)
-src/lib/qloo/               Qloo client + entity matching policy
-src/lib/ticketmaster/       Ticketmaster Discovery client
+C(d) = Σ  K_i × S_i × W(|d − d_i|)        over music events i within 14 days of date d
+```
+
+| Term | Meaning | Source |
+| --- | --- | --- |
+| `K_i` | Closeness: the act's Qloo affinity, ranked against every matched act nearby (mid-rank percentile), raised to the power 4 | Qloo `/v2/insights` `query.affinity` |
+| `S_i` | Size: Qloo's global popularity percentile; 0.50 when missing, and flagged | Qloo `popularity` |
+| `W` | Timing: same night 1.0, 1–2 days 0.7, 3–7 days 0.4, 8–14 days 0.15 | Fixed, stated hypothesis |
+
+Lower is better: a lower clash score means less pull on your artist's audience.
+
+- **Why a rank.** Qloo's artist-to-artist affinity is compressed (an unrelated metal
+  band can score 0.74 where a near-identical artist scores 0.98), so raw values would
+  mostly count shows. Ranking each act against the others nearby keeps Qloo's
+  ordering and drops the compressed scale.
+- **Headcount baseline.** The same shows and timing weights, every show counted
+  alike, so the comparison isolates what Qloo adds.
+- **Robustness.** Unmatched acts are checked twice: once as if each were a perfect
+  match for your audience (worst case), once as if each were a typical act nearby.
+  The verdict says which of those the ranking survives.
+- **Evidence quality.** Each date reports how much of its nearby activity (time-
+  weighted) could be scored; weak evidence is flagged as a lower bound.
+
+The full method, including the matching policy and the alternatives considered, is
+in [docs/METHODOLOGY.md](docs/METHODOLOGY.md).
+
+### How Qloo is used
+
+| Qloo capability | Used for |
+| --- | --- |
+| `/search` (artists) | Resolving the artist and every competing performer, with ambiguity detection |
+| `/v2/insights`, artist signal, `filter.results.entities` | Affinity of each competing act with the artist: the core of the score |
+| `/v2/insights`, artist signal, `signal.location.query` | Location-weighted recommendations for support acts |
+| `/v2/insights`, `filter.type=urn:heatmap`, point and radius | Where the artist's audience is concentrated, for the fan map and venue ranking |
+| `/entities` tags | Shared genres, lineage and influences that explain an overlap |
+
+Only affinity and popularity feed the score. Tags, heatmaps and recommendations
+are context, labelled as such, and never change a number. Every call was checked
+against the live API first; the findings are in
+[docs/API_VALIDATION.md](docs/API_VALIDATION.md).
+
+## Evaluation
+
+Ticketmaster has no historical archive, so outcomes such as ticket sales can't be
+backtested. The experiments test what the data can support and were written down
+before the data was collected ([docs/EVALUATION.md](docs/EVALUATION.md)).
+Live data, October 2026: 6 US markets, 146 artists, 37,913 artist–competitor pairs.
+
+| Question | Result |
+| --- | --- |
+| Does Qloo affinity track audience overlap? (same-genre competitors, by Ticketmaster's independent genre labels, should rank above different-genre ones) | **AUC 0.618** (95% CI 0.590–0.647) vs **0.556** for popularity alone; affinity beats popularity in all 6 markets |
+| Does Qloo change the decision? | It recommends a different date from the headcount in **27%** of 150 real scenarios, and orders the dates differently in 56% |
+| Are high-clash dates more likely to be cancelled? | Insufficient data: 11 matched cases against a pre-set minimum of 30; no claim made |
+
+The effect is modest and genre is a coarse proxy for shared audiences, so this
+supports, but does not prove, that affinity reflects audience overlap. It cannot
+show that changed decisions are better, because no sales or attendance data exists.
+
+## Agent and MCP server
+
+### Agent
+
+A Vercel AI SDK `ToolLoopAgent` with these tools, all backed by the same pipeline:
+
+| Tool | Does |
+| --- | --- |
+| `list_markets` | Supported cities |
+| `find_artist` | Resolves an artist in Qloo, reporting exact, ambiguous, weak or not found |
+| `analyze_candidate_dates` | Scores 1–4 dates |
+| `find_best_nights` | Scores every matching night in a range |
+| `explain_date` | Full breakdown for one date, including unscored shows |
+| `compare_dates` | Which shows account for the difference between two dates |
+| `what_if_exclude` | Re-scores without shows the user expects to move |
+| `watch_latest` | Starts a watch on the latest analysis |
+
+The agent is instructed to use tools for every fact. Its final answer is checked
+deterministically: if it doesn't name the engine's recommended date, the engine's
+verdict is appended. Several API keys and models can be configured; on rate
+limits, overload or refused keys it moves to the next one.
+
+### MCP server
+
+`/api/mcp` serves the Model Context Protocol over Streamable HTTP:
+
+```json
+{ "mcpServers": { "tidate": { "url": "https://<your-deployment>/api/mcp" } } }
+```
+
+For clients that only speak stdio: `npx mcp-remote https://<your-deployment>/api/mcp`.
+
+| Tool | Input |
+| --- | --- |
+| `score_candidate_dates` | `{ artist, marketId, candidateDates[], artistEntityId?, mode? }` |
+| `find_best_nights` | `{ artist, marketId, from, to, nights?, artistEntityId?, mode? }`, `nights` one of `fri-sat` (default), `thu-sat`, `all` |
+| `find_artist` | `{ name, mode? }` |
+| `list_markets` | none |
+
+Results include structured evidence and a text summary, and are labelled as demo
+data when the server has no live keys.
+
+## Architecture
+
+| Layer | Technology |
+| --- | --- |
+| App | Next.js 16 (App Router, route handlers), React 19, TypeScript |
+| Validation | zod 4 on every request and every upstream response |
+| Agent | Vercel AI SDK 7 `ToolLoopAgent`; Gemini by default, OpenAI or Anthropic optional |
+| MCP | `mcp-handler` with `@modelcontextprotocol/server` |
+| Storage | Upstash Redis over REST for watches and the shared match cache; in-memory fallback for local use |
+| Scheduling | A daily cron route for watch checks and cache warming |
+| Tests | Vitest: 92 tests, no network |
+
+```
+src/lib/scoring/engine.ts   deterministic scoring, headcount baseline, robustness, counterfactuals
+src/lib/pipeline.ts         shared orchestration: compare, night search, provisional ranking
+src/lib/qloo/               Qloo client, matching policy, shared-taste comparison
+src/lib/ticketmaster/       Ticketmaster Discovery client with window splitting
 src/lib/agent/              agent tools, ToolLoopAgent, answer verification
 src/lib/mcp/server.ts       MCP tool definitions
+src/lib/watch/              watches: store, snapshots and diffs, alerts, cache warming
+src/lib/tour.ts             one-night-per-city run planner (branch and bound)
+src/lib/context.ts          fan map, venue ranking, support-act ideas (display only)
 src/lib/demo/provider.ts    fictional demo scenario
-src/lib/watch/              watches: store (Upstash REST or memory), snapshots and diffs, alerts
-src/lib/context.ts          shared-taste tags and fan map (display only)
-src/lib/tour.ts             one-night-per-city run planner
-src/app/api/*               analyze (NDJSON stream), agent, artists, mcp, status, taste,
-                            fanmap, openers, watch (create / get / check / delete / cron)
+src/app/api/                analyze (NDJSON stream), agent, artists, mcp, status, taste,
+                            fanmap, openers, watch
 src/app/tour, src/app/watch run planner and watch pages
-src/components/             workstation UI
-scripts/                    live API validation and evaluation
-tests/                      unit, pipeline, agent, MCP tests (no network)
-docs/                       methodology, evaluation, prior art, submission notes
+src/components/             UI
+scripts/                    live API validation, evaluation, cache warming
+tests/                      unit, pipeline, agent, MCP and watch tests
+docs/                       methodology, evaluation, API validation, prior art
 ```
 
-## Setup
+### HTTP API
 
-Requirements: Node.js 20+ (developed on 22).
+| Route | Purpose |
+| --- | --- |
+| `POST /api/analyze` | Runs an analysis (`kind: "compare"` or `"discover"`) and streams progress as NDJSON |
+| `POST /api/agent` | One turn of the conversational agent |
+| `GET /api/artists` | Artist lookup with match status |
+| `GET /api/taste`, `/api/fanmap`, `/api/openers` | Shared tags, heatmap and support-act ideas (context only) |
+| `POST /api/watch`, `GET/DELETE /api/watch/:id`, `POST /api/watch/:id/check` | Watches |
+| `GET /api/watch/cron` | Daily watch checks and cache warming (requires `CRON_SECRET`) |
+| `GET /api/status` | Which integrations are configured, never their values |
+| `/api/mcp` | MCP server |
+
+## Getting started
+
+Requirements: Node.js 20 or later.
 
 ```bash
 git clone https://github.com/Abdullah49645/tidate.git
 cd tidate
 npm install
-cp .env.example .env.local   # then fill in keys
+cp .env.example .env.local   # add keys, or leave empty for demo mode
 npm run dev                  # http://localhost:3000
 ```
 
 ### Configuration
 
-| Variable | Needed for | Where to get it |
+| Variable | Needed for | Notes |
 | --- | --- | --- |
-| `QLOO_API_KEY` | live data | Qloo hackathon key request form; works only with `https://hackathon.api.qloo.com` |
-| `TICKETMASTER_API_KEY` | live data | developer.ticketmaster.com → My Apps → Consumer Key |
-| `GOOGLE_GENERATIVE_AI_API_KEYS` (comma-separated; or `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`) | conversational agent only | Google AI Studio. Keys and models rotate automatically on 429/503/403 |
-| `TIDATE_LOOKUP_BUDGET_MS` | optional | Time budget for Qloo performer lookups (default 30000) |
-| `TIDATE_DISCOVER_BUDGET_MS` | optional | Lookup budget for a night search (default 45000) |
-| `TIDATE_FORCE_DEMO=1` | optional | forces demo data |
-| `KV_REST_API_URL`, `KV_REST_API_TOKEN` | watches that persist, shared match cache | Vercel → Storage / Marketplace → Upstash Redis (free tier). `UPSTASH_REDIS_REST_URL` / `_TOKEN` also work |
-| `CRON_SECRET` | daily watch checks | any random string of 16+ characters; Vercel sends it to the cron route |
+| `QLOO_API_KEY` | Live data | Qloo API key; defaults to `https://hackathon.api.qloo.com` (override with `QLOO_BASE_URL`) |
+| `TICKETMASTER_API_KEY` | Live data | Consumer key from developer.ticketmaster.com |
+| `GOOGLE_GENERATIVE_AI_API_KEYS` | Agent | Comma-separated Gemini keys, tried in order. `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` also work |
+| `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Persistent watches, shared cache | Upstash Redis REST credentials (`UPSTASH_REDIS_REST_URL` / `_TOKEN` also accepted) |
+| `CRON_SECRET` | Daily checks | Random string of 16+ characters, sent by the scheduler as a bearer token |
+| `TIDATE_LOOKUP_BUDGET_MS` | Optional | Performer lookup time limit for an analysis (default 30000) |
+| `TIDATE_DISCOVER_BUDGET_MS` | Optional | Lookup time limit for a night search (default 45000) |
+| `TIDATE_LLM_PROVIDER`, `TIDATE_LLM_MODEL` | Optional | Choose the agent's provider and model order |
+| `TIDATE_FORCE_DEMO=1` | Optional | Use demo data even when keys are present |
 
-Without keys the app runs in **demo mode**: a fictional scenario that is labelled as
-fictional everywhere it appears. Live mode is never silently replaced by demo data.
-`GET /api/status` reports which integrations are configured (never their values).
+Without data keys the app runs in **demo mode**. Live mode is never silently
+replaced with demo data, and without a store, watches live in memory.
 
-## Scripts
+### Scripts
 
 ```bash
-npm test               # unit, pipeline, agent (mock model) and MCP tests; no network
+npm run dev            # development server
+npm test               # 92 tests; no network
 npm run typecheck
 npm run lint
 npm run build
-npm run check          # all of the above
+npm run check          # typecheck, lint, tests and build
 npm run validate:live  # exercises the real Qloo and Ticketmaster operations
-npm run eval:collect   # collects evaluation data (live keys required)
+npm run eval:collect   # collects evaluation data (live keys)
 npm run eval:run       # runs the pre-registered experiments
-npm run warm:cache     # pre-fills the shared Qloo match cache (Upstash) for all markets
+npm run warm:cache     # pre-fills the shared match cache for every market (or name some)
 ```
 
-`validate:live` and `eval:collect` write raw API responses to `.validation/` and
-`.eval-data/`, which are gitignored. Qloo data must not be committed.
+`validate:live` and `eval:collect` keep raw API responses in gitignored folders;
+Qloo data is never committed.
 
-## Deployment (Vercel)
+## Data, privacy and provenance
 
-1. Push this repository to GitHub.
-2. In Vercel: **Add New → Project → Import** the repository (framework: Next.js,
-   defaults are fine).
-3. Add the environment variables above under **Settings → Environment Variables**.
-4. For watches: in the project, open **Storage** (or the Marketplace), add
-   **Upstash Redis** on the free plan and connect it to the project; it sets
-   `KV_REST_API_URL` and `KV_REST_API_TOKEN`. Add `CRON_SECRET`.
-5. Deploy. Check `https://<your-app>/api/status`: `liveAvailable: true` means
-   both data keys are present, and `watchStorage: "upstash"` means watches persist.
+- Every result records where each value came from: Ticketmaster event ids and
+  retrieval time, the Qloo requests made (never keys), each performer's matching
+  status and the scoring version.
+- Ticketmaster event data is cached for 15 minutes. Qloo artist searches are cached
+  privately for up to 30 days to speed up later runs.
+- A watch keeps a compact record of the events near its dates so the next check can
+  tell what changed. It is deleted when you stop watching and expires 120 days
+  after its last check. The watch link is its only credential.
+- No accounts and no personal data. Demo results are marked as fictional in the
+  data, the UI, agent answers and MCP output.
 
-`vercel.json` schedules `/api/watch/cron` once a day (the Hobby plan allows daily
-crons and may run them any time within the scheduled hour). Each run checks the
-watches not checked in the last 20 hours, oldest first, within the function's time
-limit; any not reached are picked up the next day. A repeated delivery is harmless.
-Time left over warms the shared match cache for one market a day.
-
-**Before judging:** run `vercel env pull .env.local` and then `npm run warm:cache`
-(about 25–30 minutes for all 14 markets, or name a few: `npm run warm:cache --
-nashville chicago`). First live analyses then read most performer matches from the
-cache instead of searching each act, so they finish in seconds rather than ~30 s.
-
-API routes declare `maxDuration = 60`; a live analysis typically needs several
-seconds because every competing performer is matched in Qloo (results are cached
-per server instance).
-
-## Using the MCP server
-
-Point any Streamable HTTP MCP client at `https://<your-app>/api/mcp`:
-
-```json
-{ "tidate": { "url": "https://<your-app>/api/mcp" } }
-```
-
-For stdio-only clients: `npx mcp-remote https://<your-app>/api/mcp`.
-`score_candidate_dates` takes `{ artist, marketId, candidateDates[], artistEntityId?, mode? }`;
-`find_best_nights` takes `{ artist, marketId, from, to, nights?, artistEntityId?, mode? }`
-with `nights` one of `fri-sat` (default), `thu-sat`, `all`. Both return structured
-evidence plus a text summary. Results are labelled as demo
-data when the server has no live keys.
-
-## Data provenance
-
-Every result records where each value came from: Ticketmaster event ids and
-retrieval time, the Qloo requests made (no keys), the matching status of each
-performer, and the scoring version. Demo results are marked as such in the data,
-the UI, agent answers and MCP output.
-
-## Evaluation
-
-The experiments are pre-registered in [docs/EVALUATION.md](docs/EVALUATION.md).
-Ticketmaster has no historical archive, so the originally proposed cancellation
-backtest is replaced with tests the data can support: whether Qloo affinity tracks
-audience overlap (against Ticketmaster's independent genre labels, with a popularity
-control), how often Qloo changes the recommended date versus a plain count, and an
-exploratory cancellation check with a pre-set minimum sample.
-
-**Results (October 2026, 6 US markets, 146 target artists):** Qloo affinity ranks
-same-genre competitors above different-genre ones with AUC 0.618 (95% CI
-0.590–0.647), against 0.556 for popularity alone, and beats popularity in every
-market. Qloo weighting changes the recommended date in 27% of 150 real
-scenarios. The cancellation check had too few cases (11 < 30) to conclude
-anything. Full results: [docs/EVALUATION.md](docs/EVALUATION.md).
+See [NOTICE.md](NOTICE.md) for third-party data terms.
 
 ## Limitations
 
 - Qloo affinity is a proxy for potential audience overlap, not shared ticket
   buyers or purchase intent. Popularity is global, not local.
-- Ticketmaster does not list every show (independent venues, other ticketing).
-- Performers without a confident Qloo match are not scored; the UI shows them and
-  bounds their possible effect, but cannot measure it.
+- Ticketmaster doesn't list every show, and doesn't publish venue capacity.
+- Performers without a confident Qloo match aren't scored; their possible effect is
+  bounded and reported instead. Lookups are time-limited, so a first run in a busy
+  market may leave distant acts unchecked; later runs reach further.
 - Timing weights are a stated hypothesis, not fitted to outcomes.
 - A lower clash score is not a sales forecast.
 
+## Documentation
+
+- [Methodology](docs/METHODOLOGY.md): pipeline, score, matching policy,
+  robustness, night search, run planning, watches
+- [Evaluation](docs/EVALUATION.md): pre-registered experiments and results
+- [API validation](docs/API_VALIDATION.md): what the live Qloo and Ticketmaster APIs
+  actually return
+- [Prior art](docs/PRIOR_ART.md): existing tools and how Tidate differs
+
 ## License
 
-[MIT](LICENSE). Third-party data is governed by its providers' terms; see
-[NOTICE.md](NOTICE.md).
+[MIT](LICENSE) © Abdullah Bin Saad. Event data from Ticketmaster; taste,
+affinity and heatmap data from Qloo; both are governed by their providers' terms
+(see [NOTICE.md](NOTICE.md)).
