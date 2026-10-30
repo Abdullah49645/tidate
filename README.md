@@ -11,6 +11,11 @@
 </p>
 
 <p align="center">
+  <a href="https://tidate.vercel.app"><strong>Live app: tidate.vercel.app</strong></a><br>
+  <sub>Built for the <a href="https://qloo.devpost.com/">Qloo Agentic Hackathon 2026</a></sub>
+</p>
+
+<p align="center">
   <a href="#features">Features</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#the-scoring-model">Scoring model</a> ·
@@ -262,13 +267,13 @@ limits, overload or refused keys it moves to the next one.
 
 ### MCP server
 
-`/api/mcp` serves the Model Context Protocol over Streamable HTTP:
+`/api/mcp` serves the Model Context Protocol over Streamable HTTP. The public instance:
 
 ```json
-{ "mcpServers": { "tidate": { "url": "https://<your-deployment>/api/mcp" } } }
+{ "mcpServers": { "tidate": { "url": "https://tidate.vercel.app/api/mcp" } } }
 ```
 
-For clients that only speak stdio: `npx mcp-remote https://<your-deployment>/api/mcp`.
+For clients that only speak stdio: `npx mcp-remote https://tidate.vercel.app/api/mcp`.
 
 | Tool | Input |
 | --- | --- |
