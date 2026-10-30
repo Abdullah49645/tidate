@@ -1,6 +1,11 @@
 {
   "name": "tidate",
   "version": "0.1.0",
+  "homepage": "https://tidate.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Abdullah49645/tidate.git"
+  },
   "private": true,
   "scripts": {
     "dev": "next dev",
