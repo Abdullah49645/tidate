@@ -121,3 +121,25 @@ Keep this list current; do not claim anything from the right column.
 | Support acts, venue picks, share link and the three-city run planner against live data (Nashville, Atlanta, Chicago; Oct 27) | Cache warming against a real Upstash database (tested with an in-memory store and live Qloo/Ticketmaster) |
 | Watches: create, check, diff and model-written summary locally (demo and live, memory store); Upstash client against a mocked REST API | Watches on Upstash and the daily cron on a real deployment |
 | MCP JSON-RPC calls against the handler (tests) | |
+
+## Video narration (final cut, 2:48)
+
+Recorded against live data on Oct 30, 2026 (the alert scene uses the labelled demo
+data). Each line fits the time it is placed at, at a calm pace.
+
+| Time | Screen | Voiceover |
+| --- | --- | --- |
+| 0:00 | Title | This is Tidate. Pick the night your fans are free. |
+| 0:04 | Landing, Kirk Franklin example, Analyze | A promoter can hold three dates for Kirk Franklin in Nashville. Tidate pulls every music event within two weeks of each date from Ticketmaster, and asks Qloo how close each act's audience is to his. |
+| 0:17 | Verdict | Friday, November 27 comes out best. A plain headcount would pick December 10, the quietest date. Tidate also says how robust the call is, and how many acts it could match in Qloo. |
+| 0:29 | Slope chart | Here are the same shows ranked both ways. November 27 is the busiest stretch, but none of its shows pulls as hard as the biggest one around December 10. The lines cross: Qloo changes the decision. |
+| 0:41 | Dec 10 shows, Jodeci expanded | Why is December 10 worst? Jodeci, Dave Barnes and Little Big Town all play that night, and Jodeci's audience is closer to Kirk Franklin's than ninety-nine percent of acts nearby. Every score breaks down into affinity, popularity and timing, and shared Qloo tags explain the overlap. |
+| 0:59 | Who could open | Qloo's recommendations suggest support acts whose fans overlap his, leaving out anyone already playing nearby. |
+| 1:06 | Fan map, venues | Qloo's heatmap shows where his audience lives around Nashville, with the venues pulling hardest pinned on top, and venues ranked by how many fans live nearby. |
+| 1:17 | Watch button, watch page | One click turns a result into a watch. Tidate re-checks the dates every day with the same engine. |
+| 1:26 | Demo watch alert (labelled) | Here's an alert, using the fictional demo data. A new show is announced and another is cancelled. Tidate lists each change, the best night moves, and Gemini writes a short summary that's checked against the change list. |
+| 1:44 | Find a night | No dates yet? Find a night scores every Friday and Saturday in a range. Here Christmas weekend comes out quietest, because it's quiet for everyone, and Tidate flags that. |
+| 1:54 | Calendar, skipping Dec 25 and 26 | Darker nights carry more pull, the best three are numbered, and the headcount's pick is underlined. Skip the holiday and the ranking updates instantly: November 20 is the night. |
+| 2:08 | Plan a run | Plan a run picks one night per city, Nashville, Chicago and Atlanta, so no two shows are too close and the whole run carries the least pull. It explains each trade-off, and a headcount would route it differently. |
+| 2:24 | Agent | Or just ask. A Gemini agent calls the same scoring tools, never invents a number, and its answer is checked against the engine. The same tools are also an MCP server for any agent. |
+| 2:42 | End card | Tidate. Know which nights your crowd is already spoken for. |
